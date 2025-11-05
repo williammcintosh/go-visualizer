@@ -122,6 +122,7 @@ body {
 
 #checkBtn:disabled {
   background: #a9c39b;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 

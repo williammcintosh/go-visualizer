@@ -2,10 +2,7 @@
 <html>
   <head>
     <title>Go Memory Trainer</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='style.css') }}"
-    />
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div id="timerContainer">
@@ -17,34 +14,31 @@
     <button id="checkBtn">Check</button>
 
     <script>
-      const checkBtn = document.getElementById('checkBtn');
-      const stones = JSON.parse('{{ stones | safe }}');
+      const size = 4; // 4x4 squares = 5x5 intersections
+      const stones = [
+        { x: 1, y: 1, color: 'black' },
+        { x: 3, y: 2, color: 'black' },
+        { x: 2, y: 3, color: 'white' },
+        { x: 4, y: 4, color: 'white' },
+      ];
 
-      const size = 4; // 4x4 squares => 5x5 intersections
+      const board = document.getElementById('board');
+      const checkBtn = document.getElementById('checkBtn');
       let interactionEnabled = false;
 
       function drawBoard() {
-        const board = document.getElementById('board');
-        const boardSize = board.offsetWidth; // in px
-        const gap = boardSize / size;
-
-        // draw vertical lines
         for (let i = 0; i <= size; i++) {
-          const line = document.createElement('div');
-          line.classList.add('line', 'v');
-          line.style.left = `${i * gap - 1}px`;
-          board.appendChild(line);
+          const vLine = document.createElement('div');
+          vLine.classList.add('line', 'v');
+          vLine.style.left = `${(i / size) * 100}%`;
+          board.appendChild(vLine);
+
+          const hLine = document.createElement('div');
+          hLine.classList.add('line', 'h');
+          hLine.style.top = `${(i / size) * 100}%`;
+          board.appendChild(hLine);
         }
 
-        // draw horizontal lines
-        for (let i = 0; i <= size; i++) {
-          const line = document.createElement('div');
-          line.classList.add('line', 'h');
-          line.style.top = `${i * gap - 1}px`;
-          board.appendChild(line);
-        }
-
-        // intersections (clickable)
         for (let y = 0; y <= size; y++) {
           for (let x = 0; x <= size; x++) {
             const inter = document.createElement('div');
@@ -61,10 +55,9 @@
 
       function toggleInteraction(enable) {
         interactionEnabled = enable;
-        document.querySelectorAll('.intersection').forEach((point) => {
-          point.style.pointerEvents = enable ? 'auto' : 'none';
+        document.querySelectorAll('.intersection').forEach((i) => {
+          i.style.pointerEvents = enable ? 'auto' : 'none';
         });
-
         checkBtn.disabled = !enable;
         checkBtn.style.opacity = enable ? '1' : '0.5';
         checkBtn.style.cursor = enable ? 'pointer' : 'not-allowed';
@@ -145,7 +138,6 @@
       }
 
       checkBtn.addEventListener('click', checkAnswers);
-
       drawBoard();
       showStones();
     </script>
