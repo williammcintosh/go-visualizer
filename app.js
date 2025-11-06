@@ -1,0 +1,157 @@
+const intro = document.getElementById('intro');
+const difficulty = document.getElementById('difficulty');
+const mainGame = document.getElementById('mainGame');
+const aboutModal = document.getElementById('aboutModal');
+
+// utility
+function showScreen(show, hide) {
+  hide.classList.remove('active');
+  show.classList.add('active');
+}
+
+intro.classList.add('active'); // start with intro visible
+
+document.getElementById('trainBtn').onclick = () => {
+  showScreen(difficulty, intro);
+};
+
+document.getElementById('homeBtn').onclick = () => {
+  showScreen(intro, difficulty);
+};
+
+document.querySelectorAll('.diffBtn').forEach((b) => {
+  b.onclick = () => {
+    difficulty.classList.remove('active');
+    mainGame.style.display = 'block';
+    startGame(b.dataset.mode);
+  };
+});
+
+function startGame(mode) {
+  const size = 4; // 4x4 squares = 5x5 intersections
+  const stones = [
+    { x: 1, y: 1, color: 'black' },
+    { x: 3, y: 2, color: 'black' },
+    { x: 2, y: 3, color: 'white' },
+    { x: 4, y: 4, color: 'white' },
+  ];
+
+  const board = document.getElementById('board');
+  const checkBtn = document.getElementById('checkBtn');
+  let interactionEnabled = false;
+
+  function drawBoard() {
+    for (let i = 0; i <= size; i++) {
+      const vLine = document.createElement('div');
+      vLine.classList.add('line', 'v');
+      vLine.style.left = `${(i / size) * 100}%`;
+      board.appendChild(vLine);
+
+      const hLine = document.createElement('div');
+      hLine.classList.add('line', 'h');
+      hLine.style.top = `${(i / size) * 100}%`;
+      board.appendChild(hLine);
+    }
+
+    for (let y = 0; y <= size; y++) {
+      for (let x = 0; x <= size; x++) {
+        const inter = document.createElement('div');
+        inter.classList.add('intersection');
+        inter.dataset.x = x;
+        inter.dataset.y = y;
+        inter.style.left = `${(x / size) * 100}%`;
+        inter.style.top = `${(y / size) * 100}%`;
+        inter.addEventListener('click', toggleStone);
+        board.appendChild(inter);
+      }
+    }
+  }
+
+  function toggleInteraction(enable) {
+    interactionEnabled = enable;
+    document.querySelectorAll('.intersection').forEach((i) => {
+      i.style.pointerEvents = enable ? 'auto' : 'none';
+    });
+    checkBtn.disabled = !enable;
+    checkBtn.style.opacity = enable ? '1' : '0.5';
+    checkBtn.style.cursor = enable ? 'pointer' : 'not-allowed';
+  }
+
+  function showStones() {
+    const timerBar = document.getElementById('timerBar');
+    let timeLeft = 10;
+    toggleInteraction(false);
+
+    const interval = setInterval(() => {
+      timeLeft -= 0.1;
+      timerBar.style.width = (timeLeft / 10) * 100 + '%';
+      if (timeLeft <= 0) {
+        clearInterval(interval);
+        clearStones();
+        toggleInteraction(true);
+      }
+    }, 100);
+
+    stones.forEach((s) => {
+      const inter = document.querySelector(
+        `.intersection[data-x="${s.x}"][data-y="${s.y}"]`
+      );
+      inter.classList.add(s.color);
+    });
+  }
+
+  function clearStones() {
+    document
+      .querySelectorAll('.intersection')
+      .forEach((i) => i.classList.remove('black', 'white'));
+  }
+
+  function toggleStone(e) {
+    if (!interactionEnabled) return;
+    const point = e.target;
+    if (point.classList.contains('white')) {
+      point.classList.remove('white');
+      point.classList.add('black');
+    } else if (point.classList.contains('black')) {
+      point.classList.remove('black');
+    } else {
+      point.classList.add('white');
+    }
+  }
+
+  function checkAnswers() {
+    document.querySelectorAll('.marker').forEach((m) => m.remove());
+
+    for (let y = 0; y <= size; y++) {
+      for (let x = 0; x <= size; x++) {
+        const inter = document.querySelector(
+          `.intersection[data-x="${x}"][data-y="${y}"]`
+        );
+        const expected = stones.find((s) => s.x === x && s.y === y);
+        const playerWhite = inter.classList.contains('white');
+        const playerBlack = inter.classList.contains('black');
+        const marker = document.createElement('div');
+        marker.classList.add('marker');
+
+        let correct = false;
+        if (expected) {
+          if (
+            (expected.color === 'white' && playerWhite) ||
+            (expected.color === 'black' && playerBlack)
+          ) {
+            correct = true;
+          }
+        } else {
+          if (!playerWhite && !playerBlack) correct = true;
+        }
+
+        marker.textContent = correct ? '✅' : '❌';
+        inter.appendChild(marker);
+      }
+    }
+  }
+
+  checkBtn.addEventListener('click', checkAnswers);
+  drawBoard();
+  showStones();
+}

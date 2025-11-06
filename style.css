@@ -1,46 +1,50 @@
+/* ========= Root Variables ========= */
 :root {
   --main-width: 80vw; /* relative to viewport width */
-  --max-board: 400px; /* caps size on desktop */
+  --max-board: 400px; /* board cap for desktop */
+  --green: #4caf50;
+  --green-hover: #43a047;
+  --tan-bg: tan;
 }
 
-/* general layout */
+/* ========= General Layout ========= */
 body {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: tan;
+  background: var(--tan-bg);
   gap: 20px;
   margin: 0;
+  font-family: system-ui, sans-serif;
 }
 
-/* timer */
+/* ========= Timer ========= */
 #timerContainer {
   width: var(--max-board);
   height: 20px;
   background: #ccc;
   border-radius: 5px;
   overflow: hidden;
-  margin-bottom: 40px; /* distance below the timer bar */
+  margin-bottom: 100px;
 }
 
 #timerBar {
   width: 100%;
   height: 100%;
-  background: #4caf50;
+  background: var(--green);
   transition: width 0.1s linear;
 }
 
-/* Go board */
-/* Board container */
+/* ========= Go Board ========= */
 #board {
   position: relative;
   width: var(--main-width);
   max-width: var(--max-board);
-  aspect-ratio: 1 / 1; /* keeps board square */
+  aspect-ratio: 1 / 1;
   margin: 0 auto;
-  background: tan;
+  background: var(--tan-bg);
 }
 
 /* grid lines */
@@ -49,20 +53,18 @@ body {
   background: black;
   z-index: 0;
 }
-
 .line.v {
   top: 0;
   bottom: 0;
   width: 2px;
 }
-
 .line.h {
   left: 0;
   right: 0;
   height: 2px;
 }
 
-/* intersection points (clickable) */
+/* intersection points */
 .intersection {
   position: absolute;
   width: 6%;
@@ -78,23 +80,21 @@ body {
 .intersection.white::after {
   content: '';
   position: absolute;
-  width: calc(var(--max-board) / 4); /* one full cell wide (4x4 squares) */
+  width: calc(var(--max-board) / 4);
   height: calc(var(--max-board) / 4);
   transform: translate(-40%, -40%);
   border-radius: 50%;
   z-index: 2;
 }
-
 .intersection.black::after {
   background: black;
 }
-
 .intersection.white::after {
   background: white;
   border: 1px solid #aaa;
 }
 
-/* check markers */
+/* markers */
 .marker {
   position: absolute;
   font-size: 24px;
@@ -103,37 +103,141 @@ body {
   pointer-events: none;
 }
 
-/* button */
 #checkBtn {
-  width: var(--max-board);
-  padding: 12px 0;
-  font-size: 18px;
-  background: #4caf50;
+  margin-top: 100px; /* space between board and button */
+  padding: 16px 0; /* give button more heft */
+}
+
+/* ========= Global Button Styling ========= */
+button {
+  width: min(80vw, 400px);
+  padding: 14px 0;
+  font-size: clamp(16px, 5vw, 22px);
+  background: var(--green);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  margin-top: 40px; /* distance between board and Check button */
+  margin-top: 20px;
+  transition: background 0.2s;
 }
-
-#checkBtn:hover {
-  background: #43a047;
+button:hover {
+  background: var(--green-hover);
 }
-
-#checkBtn:disabled {
+button:disabled {
   background: #a9c39b;
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* when disabled clicking */
+/* ========= Intro & Difficulty Screens ========= */
+#intro,
+#difficulty {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--tan-bg);
+  text-align: center;
+  width: 100vw;
+  height: 100vh;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+#intro.active,
+#difficulty.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#intro {
+  z-index: 6;
+}
+#difficulty {
+  z-index: 5;
+}
+
+.top {
+  margin-bottom: 4vh;
+}
+
+/* Shared visuals */
+.logo {
+  /* position: absolute; */
+  top: 8vh;
+  width: clamp(100px, 40vw, 200px);
+}
+
+#intro h1,
+#difficulty h1 {
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 700;
+  margin-bottom: 0.5em;
+  color: #000;
+}
+
+#intro .subtitle,
+#difficulty .subtitle {
+  font-size: clamp(1.2rem, 5vw, 2rem);
+  text-align: center;
+  margin-bottom: 1.5em;
+  color: #222;
+}
+
+.btn-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1em;
+}
+
+.btn-col button {
+  width: clamp(200px, 60vw, 400px);
+  font-size: clamp(1rem, 5vw, 1.5rem);
+  padding: 1em;
+  border-radius: 10px;
+}
+
+/* ========= About Modal ========= */
+#aboutModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+#aboutModal .modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  max-width: 400px;
+  text-align: center;
+  color: #222;
+}
+
+/* ========= Disabled Intersection ========= */
 .intersection[style*='pointer-events: none'] {
   cursor: not-allowed;
 }
 
-/* Mobile handling */
+/* ========= Mobile Tweaks ========= */
 @media (max-width: 600px) {
   :root {
-    --main-width: 95vw; /* fills more of the screen */
+    --main-width: 95vw;
+    --max-board: 90vw;
+  }
+
+  #timerContainer {
+    width: 90vw;
+  }
+
+  .marker {
+    font-size: 20px;
   }
 }
