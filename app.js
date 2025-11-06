@@ -90,7 +90,7 @@ function startGame(mode) {
         clearStones();
         toggleInteraction(true);
       }
-    }, 100);
+    }, 10);
 
     stones.forEach((s) => {
       const inter = document.querySelector(
@@ -121,6 +121,7 @@ function startGame(mode) {
 
   function checkAnswers() {
     document.querySelectorAll('.marker').forEach((m) => m.remove());
+    let allCorrect = true;
 
     for (let y = 0; y <= size; y++) {
       for (let x = 0; x <= size; x++) {
@@ -141,17 +142,52 @@ function startGame(mode) {
           ) {
             correct = true;
           }
-        } else {
-          if (!playerWhite && !playerBlack) correct = true;
+        } else if (!playerWhite && !playerBlack) {
+          correct = true;
         }
 
         marker.textContent = correct ? '✅' : '❌';
+        if (!correct) allCorrect = false;
         inter.appendChild(marker);
       }
     }
+
+    // disable further clicking
+    toggleInteraction(false);
+
+    // show feedback
+    const feedback = document.getElementById('feedback');
+    const msg = document.getElementById('feedbackMsg');
+    const nextBtn = document.getElementById('nextBtn');
+    feedback.style.display = 'block';
+    msg.textContent = allCorrect ? 'Well done!' : 'Missed a few!';
+
+    // fade in message and later button without layout bounce
+    feedback.classList.add('show-msg');
+    setTimeout(() => feedback.classList.add('show-btn'), 1500);
+
+    msg.style.opacity = 0;
+    nextBtn.style.display = 'none';
+
+    setTimeout(() => {
+      msg.style.transition = 'opacity 1s';
+      msg.style.opacity = 1;
+    }, 300);
+
+    setTimeout(() => {
+      nextBtn.style.display = 'inline-block';
+    }, 1800);
   }
 
   checkBtn.addEventListener('click', checkAnswers);
+
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    document.getElementById('feedback').style.display = 'none';
+    document.querySelectorAll('.marker').forEach((m) => m.remove());
+    clearStones();
+    showStones();
+  });
+
   drawBoard();
   showStones();
 }
