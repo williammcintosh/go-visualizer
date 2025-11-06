@@ -2,6 +2,8 @@ const intro = document.getElementById('intro');
 const difficulty = document.getElementById('difficulty');
 const mainGame = document.getElementById('mainGame');
 const aboutModal = document.getElementById('aboutModal');
+let lastFile = null;
+let currentMode = 'easy';
 
 // utility
 function showScreen(show, hide) {
@@ -21,24 +23,110 @@ document.getElementById('homeBtn').onclick = () => {
 
 document.querySelectorAll('.diffBtn').forEach((b) => {
   b.onclick = () => {
+    currentMode = b.dataset.mode; // remember the chosen mode
     difficulty.classList.remove('active');
     mainGame.style.display = 'block';
     startGame(b.dataset.mode);
   };
 });
 
-function startGame(mode) {
-  const size = 4; // 4x4 squares = 5x5 intersections
-  const stones = [
-    { x: 1, y: 1, color: 'black' },
-    { x: 3, y: 2, color: 'black' },
-    { x: 2, y: 3, color: 'white' },
-    { x: 4, y: 4, color: 'white' },
+async function loadRandomSGF() {
+  // just add new filenames here as you add SGFs
+  const files = [
+    '80941137-023-Hai1234-wmm_co_nz.sgf',
+    '80948461-015-hyzmcg-wmm_co_nz.sgf',
+    '80970815-010-謝安桓衝-wmm_co_nz.sgf',
+    '80971474-031-le go at-wmm_co_nz.sgf',
   ];
 
+  // pick a random index that isn't the same as last time
+  let randomIndex;
+  do {
+    randomIndex = Math.floor(Math.random() * files.length);
+  } while (files[randomIndex] === lastFile && files.length > 1);
+
+  const randomFile = files[randomIndex];
+  lastFile = randomFile;
+
+  // force a cache-busting fetch
+  const response = await fetch(`./games/${randomFile}?_=${Math.random()}`, {
+    cache: 'no-store',
+  });
+
+  const sgfText = await response.text();
+
+  //   console.log('Selected SGF file:', randomFile); // <- you’ll see different ones now
+  return sgfText;
+}
+
+function parseSGFMoves(sgfText, limit = 5) {
+  const moves = [];
+
+  // Flatten line breaks, tabs, spaces
+  const clean = sgfText.replace(/\s+/g, '');
+
+  // Match both ;B[aa] and (;W[bb] variants
+  const moveRegex = /[;\(]*([BW])\[(..)\]/gi;
+  let match;
+
+  while ((match = moveRegex.exec(clean)) !== null && moves.length < limit) {
+    const color = match[1] === 'B' ? 'black' : 'white';
+    const coords = match[2].toLowerCase();
+
+    // skip empty moves like "[]"
+    if (coords.trim() === '' || coords === '..') continue;
+
+    const x = coords.charCodeAt(0) - 97; // 'a' → 0
+    const y = coords.charCodeAt(1) - 97;
+
+    moves.push({ x, y, color });
+  }
+  console.log('Parsed moves count:', moves.length);
+  //   console.log('Parsed moves:', moves);
+  return moves;
+}
+
+const nextBtn = document.getElementById('nextBtn');
+nextBtn.addEventListener('click', async () => {
+  const feedback = document.getElementById('feedback');
+  feedback.style.display = 'none';
+  if (window.activeGame?.timer) {
+    clearInterval(window.activeGame.timer);
+    window.activeGame.timer = null;
+  }
+  document.getElementById('board').replaceChildren();
+  document.querySelectorAll('.marker').forEach((m) => m.remove());
+  await startGame(currentMode); // keeps same difficulty level
+});
+
+async function startGame(mode) {
+  const config =
+    mode === 'hard'
+      ? { intervalSpeed: 80, stoneCount: 10 }
+      : { intervalSpeed: 50, stoneCount: 5 };
+  // Kill any old game state
+  if (window.activeGame?.timer) {
+    clearInterval(window.activeGame.timer);
+    window.activeGame.timer = null;
+  }
   const board = document.getElementById('board');
+  board.innerHTML = ''; // wipes all intersections and stones
+  document.querySelectorAll('.marker').forEach((m) => m.remove());
+  await new Promise((resolve) => requestAnimationFrame(resolve)); // force DOM repaint
+  board.replaceChildren(); // completely wipes old intersections, lines, stones
+  document.querySelectorAll('.marker').forEach((m) => m.remove());
+
+  window.activeGame = {}; // new blank game object
+
+  const size = 4; // 4x4 squares = 5x5 intersections
   const checkBtn = document.getElementById('checkBtn');
+  let stones = [];
   let interactionEnabled = false;
+
+  board.innerHTML = ''; // clear any previous board before loading new one
+
+  const sgfText = await loadRandomSGF();
+  stones = parseSGFMoves(sgfText, config.stoneCount);
 
   function drawBoard() {
     for (let i = 0; i <= size; i++) {
@@ -78,26 +166,36 @@ function startGame(mode) {
   }
 
   function showStones() {
+    console.log('Active stones:', JSON.stringify(stones));
+
     const timerBar = document.getElementById('timerBar');
     let timeLeft = 10;
     toggleInteraction(false);
 
-    const interval = setInterval(() => {
-      timeLeft -= 0.1;
-      timerBar.style.width = (timeLeft / 10) * 100 + '%';
-      if (timeLeft <= 0) {
-        clearInterval(interval);
-        clearStones();
-        toggleInteraction(true);
-      }
-    }, 10);
+    // Clear any old timers first
+    if (window.activeGame?.timer) {
+      clearInterval(window.activeGame.timer);
+    }
 
+    // Show the stones
     stones.forEach((s) => {
       const inter = document.querySelector(
         `.intersection[data-x="${s.x}"][data-y="${s.y}"]`
       );
-      inter.classList.add(s.color);
+      if (inter) inter.classList.add(s.color);
     });
+
+    // Start countdown
+    window.activeGame.timer = setInterval(() => {
+      timeLeft -= 0.1;
+      timerBar.style.width = (timeLeft / 10) * 100 + '%';
+      if (timeLeft <= 0) {
+        clearInterval(window.activeGame.timer);
+        window.activeGame.timer = null;
+        clearStones();
+        toggleInteraction(true);
+      }
+    }, config.intervalSpeed);
   }
 
   function clearStones() {
@@ -146,6 +244,9 @@ function startGame(mode) {
           correct = true;
         }
 
+        const oldMarker = inter.querySelector('.marker');
+        if (oldMarker) oldMarker.remove();
+
         marker.textContent = correct ? '✅' : '❌';
         if (!correct) allCorrect = false;
         inter.appendChild(marker);
@@ -181,13 +282,7 @@ function startGame(mode) {
 
   checkBtn.addEventListener('click', checkAnswers);
 
-  document.getElementById('nextBtn').addEventListener('click', () => {
-    document.getElementById('feedback').style.display = 'none';
-    document.querySelectorAll('.marker').forEach((m) => m.remove());
-    clearStones();
-    showStones();
-  });
-
   drawBoard();
+  setTimeout(showStones, 50);
   showStones();
 }
