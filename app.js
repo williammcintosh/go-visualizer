@@ -90,6 +90,8 @@ const nextBtn = document.getElementById('nextBtn');
 nextBtn.addEventListener('click', async () => {
   const feedback = document.getElementById('feedback');
   feedback.style.display = 'none';
+  feedback.classList.remove('show');
+
   if (window.activeGame?.timer) {
     clearInterval(window.activeGame.timer);
     window.activeGame.timer = null;
@@ -261,23 +263,15 @@ async function startGame(mode) {
     const msg = document.getElementById('feedbackMsg');
     const nextBtn = document.getElementById('nextBtn');
     feedback.style.display = 'block';
+    requestAnimationFrame(() => feedback.classList.add('show'));
     msg.textContent = allCorrect ? 'Well done!' : 'Missed a few!';
 
     // fade in message and later button without layout bounce
     feedback.classList.add('show-msg');
     setTimeout(() => feedback.classList.add('show-btn'), 1500);
 
-    msg.style.opacity = 0;
-    nextBtn.style.display = 'none';
-
-    setTimeout(() => {
-      msg.style.transition = 'opacity 1s';
-      msg.style.opacity = 1;
-    }, 300);
-
-    setTimeout(() => {
-      nextBtn.style.display = 'inline-block';
-    }, 1800);
+    msg.style.opacity = 1;
+    nextBtn.style.display = 'inline-block';
   }
 
   checkBtn.addEventListener('click', checkAnswers);

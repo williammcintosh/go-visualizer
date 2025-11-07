@@ -144,10 +144,13 @@ body {
   max-width: 300px;
   display: none;
   z-index: 10;
+  opacity: 0;
+  transition: opacity 0.5s ease;
 }
 
 #feedback.show {
-  display: block;
+  display: flex;
+  opacity: 1;
 }
 
 #feedbackMsg {
@@ -164,6 +167,12 @@ body {
   font-size: 1.2rem;
   padding: 12px 0;
   border-radius: 10px;
+}
+
+/* Make the “Next” button full width */
+#nextBtn {
+  width: 100%;
+  margin: 0.5rem 0;
 }
 
 /* ========= Global Button Styling ========= */
@@ -334,6 +343,30 @@ button:disabled {
   #feedback {
     top: calc(100% + 2rem) !important;
     transform: translate(-50%, -50%);
+  }
+
+  #feedbackMsg {
+    margin: 0.5rem 0;
+  }
+
+  /* Make the “Next” button full width */
+  #nextBtn {
+    width: 100%;
+    margin: 0.5rem 0;
+  }
+
+  /* Create a two-column row for Retry + Home */
+  .feedback-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  /* Both side buttons equal width */
+  .feedback-bottom-row button {
+    flex: 1;
+    margin: 0;
   }
 }
 
