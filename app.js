@@ -121,7 +121,13 @@ async function startGame(mode) {
   window.activeGame = {}; // new blank game object
 
   const size = 4; // 4x4 squares = 5x5 intersections
+
   const checkBtn = document.getElementById('checkBtn');
+  const timerContainer = document.getElementById('timerContainer');
+
+  checkBtn.classList.add('hidden');
+  timerContainer.style.display = 'block';
+
   let stones = [];
   let interactionEnabled = false;
 
@@ -196,6 +202,9 @@ async function startGame(mode) {
         window.activeGame.timer = null;
         clearStones();
         toggleInteraction(true);
+
+        timerContainer.style.display = 'none';
+        checkBtn.classList.remove('hidden');
       }
     }, config.intervalSpeed);
   }

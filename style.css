@@ -30,14 +30,15 @@ body {
   padding-bottom: 40px;
 }
 
-/* ========= Timer ========= */
+/* Timer sits where Check normally is */
 #timerContainer {
-  width: var(--max-board);
-  height: 20px;
+  width: 55vw;
+  height: 40px;
   background: #ccc;
-  border-radius: 5px;
+  border-radius: 10px;
   overflow: hidden;
-  margin-bottom: 100px;
+  margin-top: 0.5rem;
+  display: none; /* hidden until active */
 }
 
 #timerBar {
@@ -119,9 +120,23 @@ body {
   opacity: 0.8;
 }
 
+/* Check button same size as timer */
 #checkBtn {
-  margin-top: 100px; /* space between board and button */
-  padding: 16px 0; /* give button more heft */
+  width: 55vw;
+  height: 40px;
+  font-size: 4vw;
+  background: var(--green);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+
+/* Hide Check completely when inactive */
+#checkBtn.hidden {
+  display: none;
 }
 
 #mainGame {
@@ -317,12 +332,6 @@ button:disabled {
     margin: 0 auto;
   }
 
-  #timerContainer {
-    width: 70vw !important;
-    height: 12px !important;
-    margin-bottom: 0.5rem !important;
-  }
-
   #board {
     margin-top: 1.5rem !important;
     position: relative;
@@ -367,6 +376,13 @@ button:disabled {
   .feedback-bottom-row button {
     flex: 1;
     margin: 0;
+  }
+  @media (max-width: 600px) {
+    #checkBtn,
+    #timerContainer {
+      position: relative;
+      top: 4vh; /* adjust this value to move it lower or higher */
+    }
   }
 }
 
