@@ -86,6 +86,8 @@ function parseSGFMoves(sgfText, limit = 5) {
   return moves;
 }
 
+// ================ LISTENERS ======================== //
+
 const nextBtn = document.getElementById('nextBtn');
 nextBtn.addEventListener('click', async () => {
   const feedback = document.getElementById('feedback');
@@ -101,8 +103,8 @@ nextBtn.addEventListener('click', async () => {
   document.querySelectorAll('.marker').forEach((m) => m.remove());
   await startGame(currentMode); // keeps same difficulty level
 });
-const retryBtn = document.getElementById('retryBtn');
 
+const retryBtn = document.getElementById('retryBtn');
 retryBtn.addEventListener('click', async () => {
   const feedback = document.getElementById('feedback');
   feedback.style.display = 'none';
@@ -122,11 +124,28 @@ retryBtn.addEventListener('click', async () => {
   await startGame(currentMode, true);
 });
 
+const homeBtn2 = document.getElementById('homeBtn2');
+homeBtn2.addEventListener('click', () => {
+  const feedback = document.getElementById('feedback');
+  feedback.style.display = 'none';
+  feedback.classList.remove('show');
+
+  // Stop any active timer
+  if (window.activeGame?.timer) {
+    clearInterval(window.activeGame.timer);
+    window.activeGame.timer = null;
+  }
+
+  // Hide the game and show the intro screen
+  mainGame.style.display = 'none';
+  showScreen(intro, difficulty);
+});
+
 async function startGame(mode, retry = false) {
   const config =
     mode === 'hard'
-      ? { intervalSpeed: 80, stoneCount: 10 }
-      : { intervalSpeed: 50, stoneCount: 5 };
+      ? { intervalSpeed: 50, stoneCount: 10 }
+      : { intervalSpeed: 40, stoneCount: 5 };
   // Kill any old game state
   if (window.activeGame?.timer) {
     clearInterval(window.activeGame.timer);
@@ -144,11 +163,12 @@ async function startGame(mode, retry = false) {
   }
 
   const size = 4; // 4x4 squares = 5x5 intersections
+  document.documentElement.style.setProperty('--board-size', size);
 
   const checkBtn = document.getElementById('checkBtn');
   const timerContainer = document.getElementById('timerContainer');
 
-  checkBtn.classList.add('hidden');
+  checkBtn.classList.remove('show');
   timerContainer.style.display = 'block';
 
   let stones = [];
@@ -231,7 +251,7 @@ async function startGame(mode, retry = false) {
         toggleInteraction(true);
 
         timerContainer.style.display = 'none';
-        checkBtn.classList.remove('hidden');
+        checkBtn.classList.add('show');
       }
     }, config.intervalSpeed);
   }

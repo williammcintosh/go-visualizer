@@ -8,6 +8,17 @@
 }
 
 /* ========= General Layout ========= */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* stops scrollbars */
+  position: fixed; /* locks viewport */
+  touch-action: none; /* disables swipe scrolling */
+}
+
 body {
   display: flex;
   justify-content: center;
@@ -78,8 +89,8 @@ body {
 /* hitbox touch points */
 .intersection {
   position: absolute;
-  width: calc(var(--max-board) / 4);
-  height: calc(var(--max-board) / 4);
+  width: calc(var(--max-board) / var(--board-size));
+  height: calc(var(--max-board) / var(--board-size));
   transform: translate(-50%, -50%);
   border-radius: 50%;
   cursor: pointer;
@@ -93,8 +104,8 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: calc(var(--max-board) / 4);
-  height: calc(var(--max-board) / 4);
+  width: calc(var(--max-board) / var(--board-size));
+  height: calc(var(--max-board) / var(--board-size));
   transform: translate(-50%, -50%); /* must match intersection center */
   border-radius: 50%;
   z-index: 2; /* higher so it shows on top */
@@ -122,6 +133,7 @@ body {
 
 /* Check button same size as timer */
 #checkBtn {
+  display: none;
   width: 55vw;
   height: 40px;
   font-size: 4vw;
@@ -137,6 +149,9 @@ body {
 /* Hide Check completely when inactive */
 #checkBtn.hidden {
   display: none;
+}
+#checkBtn.show {
+  display: block;
 }
 
 #mainGame {
@@ -200,7 +215,6 @@ button {
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  margin-top: 5px;
   transition: background 0.2s;
 }
 button:hover {
@@ -224,10 +238,11 @@ button:disabled {
   background: var(--tan-bg);
   text-align: center;
   width: 100vw;
-  height: 100vh;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease;
+  justify-content: flex-start; /* stop centering everything */
+  padding-top: 8vh; /* consistent top offset for all screens */
 }
 
 #intro.active,
@@ -244,14 +259,27 @@ button:disabled {
 }
 
 .top {
-  margin-bottom: 4vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Shared visuals */
 .logo {
-  /* position: absolute; */
-  top: 8vh;
-  width: clamp(100px, 40vw, 200px);
+  display: block;
+  width: 165px;
+  height: 165px;
+  object-fit: contain;
+  margin: 0;
+}
+
+#intro .top,
+#difficulty .top {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 #intro h1,
