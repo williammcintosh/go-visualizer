@@ -91,6 +91,7 @@ nextBtn.addEventListener('click', async () => {
   const feedback = document.getElementById('feedback');
   feedback.style.display = 'none';
   feedback.classList.remove('show');
+  setTimeout(() => (feedback.style.display = 'none'), 300);
 
   if (window.activeGame?.timer) {
     clearInterval(window.activeGame.timer);
@@ -100,8 +101,28 @@ nextBtn.addEventListener('click', async () => {
   document.querySelectorAll('.marker').forEach((m) => m.remove());
   await startGame(currentMode); // keeps same difficulty level
 });
+const retryBtn = document.getElementById('retryBtn');
 
-async function startGame(mode) {
+retryBtn.addEventListener('click', async () => {
+  const feedback = document.getElementById('feedback');
+  feedback.style.display = 'none';
+  feedback.classList.remove('show');
+  setTimeout(() => (feedback.style.display = 'none'), 300);
+
+  // Clear any leftover timers or markers
+  if (window.activeGame?.timer) {
+    clearInterval(window.activeGame.timer);
+    window.activeGame.timer = null;
+  }
+  document.getElementById('board').replaceChildren();
+  document.querySelectorAll('.marker').forEach((m) => m.remove());
+
+  // Restart the same mode and sgf file
+  window.activeGame.sgfText = window.activeGame.sgfText; // keep the same one
+  await startGame(currentMode, true);
+});
+
+async function startGame(mode, retry = false) {
   const config =
     mode === 'hard'
       ? { intervalSpeed: 80, stoneCount: 10 }
@@ -118,7 +139,9 @@ async function startGame(mode) {
   board.replaceChildren(); // completely wipes old intersections, lines, stones
   document.querySelectorAll('.marker').forEach((m) => m.remove());
 
-  window.activeGame = {}; // new blank game object
+  if (!retry) {
+    window.activeGame = {};
+  }
 
   const size = 4; // 4x4 squares = 5x5 intersections
 
@@ -131,9 +154,13 @@ async function startGame(mode) {
   let stones = [];
   let interactionEnabled = false;
 
-  board.innerHTML = ''; // clear any previous board before loading new one
+  //   board.innerHTML = ''; // clear any previous board before loading new one
 
-  const sgfText = await loadRandomSGF();
+  const sgfText =
+    retry && window.activeGame?.sgfText
+      ? window.activeGame.sgfText
+      : await loadRandomSGF();
+  window.activeGame.sgfText = sgfText;
   stones = parseSGFMoves(sgfText, config.stoneCount);
 
   function drawBoard() {
