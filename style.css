@@ -29,6 +29,8 @@ body {
   font-family: system-ui, sans-serif;
   transform: scale(1.1);
   transform-origin: top center;
+  align-items: flex-start;
+  padding-top: 4vh !important;
 }
 
 /* The whole game area is centered and doesn’t resize */
@@ -38,7 +40,6 @@ body {
   align-items: center;
   justify-content: flex-start;
   height: auto;
-  padding-bottom: 40px;
 }
 
 /* Timer sits where Check normally is */
@@ -147,24 +148,29 @@ body {
 }
 
 /* Hide Check completely when inactive */
-#checkBtn.hidden {
-  display: none;
+#checkBtn.hidden,
+#timerContainer.hidden {
+  opacity: 0;
+  visibility: hidden;
 }
+
 #checkBtn.show {
   display: block;
 }
 
 #mainGame {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start; /* fixes the board in place */
+
+  flex-grow: 1;
+  position: relative;
 }
 
 #feedback {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(96%); /* same as mobile logic */
   background: rgba(245, 245, 220, 0.95);
   border-radius: 15px;
   padding: 0.5rem;
@@ -174,13 +180,18 @@ body {
   max-width: 300px;
   display: none;
   z-index: 10;
-  opacity: 0;
-  transition: opacity 0.5s ease;
+  transition: opacity 0.3s ease;
+}
+
+#feedback.show {
+  display: flex;
 }
 
 #feedback.show {
   display: flex;
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 #feedbackMsg {
@@ -203,6 +214,22 @@ body {
 #nextBtn {
   width: 100%;
   margin: 0.5rem 0;
+}
+
+#checkBtn,
+#timerContainer {
+  width: 80vw;
+  max-width: 300px;
+  height: 50px;
+  font-size: 1.2rem;
+  /* margin-top: 4rem !important; */
+  position: relative;
+  transition: opacity 0.3s ease;
+  opacity: 1;
+  visibility: visible;
+  margin-top: 3vh;
+  position: relative;
+  top: 4vh;
 }
 
 /* ========= Global Button Styling ========= */
@@ -286,7 +313,6 @@ button:disabled {
 #difficulty h1 {
   font-size: clamp(2.5rem, 8vw, 5rem);
   font-weight: 700;
-  margin-bottom: 0.5em;
   color: #000;
 }
 
@@ -294,7 +320,7 @@ button:disabled {
 #difficulty .subtitle {
   font-size: clamp(1.2rem, 5vw, 2rem);
   text-align: center;
-  margin-bottom: 1.5em;
+
   color: #222;
 }
 
@@ -308,7 +334,7 @@ button:disabled {
 .btn-col button {
   width: clamp(200px, 60vw, 400px);
   font-size: clamp(1rem, 5vw, 1.5rem);
-  padding: 1em;
+
   border-radius: 10px;
 }
 
@@ -348,6 +374,7 @@ button:disabled {
     justify-content: center;
     align-items: flex-start;
     padding-top: 4vh !important;
+    transform: scale(1);
   }
 
   .game-wrapper {
@@ -366,20 +393,17 @@ button:disabled {
     width: 70vw !important;
     height: 70vw !important;
     margin: 1.5rem auto 0 auto !important;
-    left: 50%;
-    transform: translateX(-50%);
   }
 
   #checkBtn {
     margin-top: 0.5rem !important;
-    font-size: 4vw !important;
+    font-size: 6vw !important;
     padding: 8px 0 !important;
-    width: 55vw !important;
+    width: 100% !important;
   }
 
   #feedback {
-    top: calc(100% + 2rem) !important;
-    transform: translate(-50%, -50%);
+    top: calc(92%) !important;
   }
 
   #feedbackMsg {
@@ -405,43 +429,14 @@ button:disabled {
     flex: 1;
     margin: 0;
   }
-  @media (max-width: 600px) {
-    #checkBtn,
-    #timerContainer {
-      position: relative;
-      top: 4vh; /* adjust this value to move it lower or higher */
-    }
-  }
-}
 
-/* desktop: below the board */
-@media (min-width: 601px) {
-  #feedback {
+  #checkBtn,
+  #timerContainer {
+    transition: opacity 0.3s ease;
+    opacity: 1;
+    visibility: visible;
+    margin-top: 3vh;
     position: relative;
-    left: 0;
-    transform: translate(0%, -50%);
-    margin: 2rem auto 0 auto;
-    width: 300px;
-    background: rgba(245, 245, 220, 0.9);
-    box-shadow: none;
-    margin-top: 3rem;
-  }
-
-  @media (min-width: 601px) {
-    /* Narrower, taller bar/button on desktop */
-    #checkBtn,
-    #timerContainer {
-      width: 80vw;
-      max-width: 300px;
-      height: 50px;
-      font-size: 1.2rem;
-    }
-
-    /* Center both elements under the board */
-    #checkBtn,
-    #timerContainer {
-      margin-top: 4rem !important;
-      position: relative;
-    }
+    top: 5vh;
   }
 }

@@ -327,8 +327,10 @@ async function startGame(mode, retry = false) {
         const expected = stones.find((s) => s.x === x && s.y === y);
         const playerWhite = inter.classList.contains('white');
         const playerBlack = inter.classList.contains('black');
-        const marker = document.createElement('div');
-        marker.classList.add('marker');
+
+        // determine correctness only if the cell should have a stone or the player placed one
+        const shouldCheck = expected || playerWhite || playerBlack;
+        if (!shouldCheck) continue;
 
         let correct = false;
         if (expected) {
@@ -342,9 +344,8 @@ async function startGame(mode, retry = false) {
           correct = true;
         }
 
-        const oldMarker = inter.querySelector('.marker');
-        if (oldMarker) oldMarker.remove();
-
+        const marker = document.createElement('div');
+        marker.classList.add('marker');
         marker.textContent = correct ? '✅' : '❌';
         if (!correct) allCorrect = false;
         inter.appendChild(marker);
@@ -355,6 +356,7 @@ async function startGame(mode, retry = false) {
     toggleInteraction(false);
 
     // show feedback
+
     const feedback = document.getElementById('feedback');
     const msg = document.getElementById('feedbackMsg');
     const nextBtn = document.getElementById('nextBtn');
@@ -365,18 +367,11 @@ async function startGame(mode, retry = false) {
     if (allCorrect) {
       window.progress[window.activeGame.mode].level++;
     } else {
-      // optional: lightly punish failure
       window.progress[window.activeGame.mode].level = Math.max(
         1,
         window.progress[window.activeGame.mode].level - 1
       );
     }
-
-    console.log(
-      `New ${window.activeGame.mode} level: ${
-        window.progress[window.activeGame.mode].level
-      }`
-    );
 
     // fade in message and later button without layout bounce
     feedback.classList.add('show-msg');
