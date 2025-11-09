@@ -196,7 +196,6 @@ body {
 
 #feedbackMsg {
   font-size: 1.5rem;
-  /* margin-bottom: 1rem; */
   margin: 0.5rem 0 !important;
   padding: 0;
 }
@@ -222,7 +221,6 @@ body {
   max-width: 300px;
   height: 50px;
   font-size: 1.2rem;
-  /* margin-top: 4rem !important; */
   position: relative;
   transition: opacity 0.3s ease;
   opacity: 1;
@@ -314,13 +312,13 @@ button:disabled {
   font-size: clamp(2.5rem, 8vw, 5rem);
   font-weight: 700;
   color: #000;
+  margin: 10px !important;
 }
 
 #intro .subtitle,
 #difficulty .subtitle {
   font-size: clamp(1.2rem, 5vw, 2rem);
   text-align: center;
-
   color: #222;
 }
 

@@ -152,15 +152,11 @@ nextBtn.onclick = async () => {
   await startGame(window.activeGame.mode);
 };
 
-// nextBtn.onclick = null;
-
-retryBtn.onclick = () => startGame(window.activeGame.mode, true);
-retryBtn.onclick = null;
-
 async function startGame(mode, retry = false) {
   console.trace('startGame CALLED');
 
-  window.activeGame = { mode };
+  if (!retry) window.activeGame = { mode };
+
   const level = window.progress[mode].level;
 
   console.log(`=== START GAME (${mode.toUpperCase()}) ===`);
@@ -213,8 +209,6 @@ async function startGame(mode, retry = false) {
 
   let stones = [];
   let interactionEnabled = false;
-
-  //   board.innerHTML = ''; // clear any previous board before loading new one
 
   const sgfText =
     retry && window.activeGame?.sgfText
