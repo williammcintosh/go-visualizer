@@ -35,22 +35,26 @@ body {
 
 /* The whole game area is centered and doesn’t resize */
 .game-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  height: auto;
+  position: relative;
 }
 
-/* Timer sits where Check normally is */
 #timerContainer {
-  width: 55vw;
+  width: 100%;
   height: 40px;
   background: #ccc;
   border-radius: 10px;
   overflow: hidden;
   margin-top: 0.5rem;
-  display: none; /* hidden until active */
+}
+
+#timerContainer {
+  position: relative;
+  width: 80vw;
+  max-width: 300px;
+  height: 50px;
+  font-size: 1.2rem;
+  margin-top: 3vh;
+  z-index: 1;
 }
 
 #timerBar {
@@ -58,6 +62,47 @@ body {
   height: 100%;
   background: var(--green);
   transition: width 0.1s linear;
+}
+
+/* =========== Bonus ===========*/
+#bonusContainer {
+  position: absolute;
+  bottom: -20vh;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: var(--main-width);
+  max-width: var(--max-board);
+  min-height: 60px;
+  pointer-events: auto;
+}
+
+.bonus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.bonus:hover {
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+.bonus img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.bonus .cost {
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+  font-weight: 600;
+  color: #222;
 }
 
 /* ========= Go Board ========= */
@@ -134,23 +179,28 @@ body {
 
 /* Check button same size as timer */
 #checkBtn {
+  position: absolute;
+  top: calc(100% + 3vh); /* sits exactly where timer was */
+  width: 80vw;
+  max-width: 300px;
+  height: 50px;
+  font-size: 1.2rem;
+  z-index: 2;
   display: none;
-  width: 55vw;
-  height: 40px;
-  font-size: 4vw;
-  background: var(--green);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  margin-top: 0.5rem;
-  cursor: pointer;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.4s ease;
 }
 
 /* Hide Check completely when inactive */
 #checkBtn.hidden,
 #timerContainer.hidden {
   opacity: 0;
+  visibility: hidden;
+}
+
+#timerContainer.hidden {
+  height: 0;
+  opacity: 0;
+  margin-top: 0;
   visibility: hidden;
 }
 
@@ -215,19 +265,22 @@ body {
   margin: 0.5rem 0;
 }
 
-#checkBtn,
-#timerContainer {
+#checkBtn {
   width: 80vw;
   max-width: 300px;
   height: 50px;
   font-size: 1.2rem;
-  position: relative;
-  transition: opacity 0.3s ease;
+  position: absolute;
+  top: 0; /* sits exactly where the timer is */
+  z-index: 2;
+  display: none;
+  pointer-events: none;
+}
+
+#checkBtn.show {
+  display: block;
   opacity: 1;
-  visibility: visible;
-  margin-top: 3vh;
-  position: relative;
-  top: 4vh;
+  pointer-events: auto;
 }
 
 /* ========= Global Button Styling ========= */
@@ -526,6 +579,7 @@ button:disabled {
   }
 
   .game-wrapper {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;

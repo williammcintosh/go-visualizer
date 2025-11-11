@@ -21,7 +21,6 @@ const gameState = {
   levels: [],
 };
 gameState.score = gameState.score || 0;
-const SCORE_POINTS = 1000; // easy to edit later
 
 const base = { stones: 5, board: 4, time: 20 };
 
@@ -291,8 +290,11 @@ async function startGame(mode, retry = false) {
 
   const checkBtn = document.getElementById('checkBtn');
   const timerContainer = document.getElementById('timerContainer');
+
+  timerContainer.style.visibility = 'visible';
+
   checkBtn.classList.remove('show');
-  timerContainer.style.display = 'block';
+  timerContainer.style.visibility = 'visible';
 
   const sgfText =
     retry && window.activeGame?.sgfText
@@ -334,8 +336,12 @@ async function startGame(mode, retry = false) {
 
       clearStones();
       toggleInteraction(true);
-      timerContainer.style.display = 'none';
-      checkBtn.classList.add('show');
+      // smooth swap
+      timerBar.style.width = '0%'; // ensure full depletion
+      setTimeout(() => {
+        timerContainer.classList.add('hidden'); // collapse it
+        checkBtn.classList.add('show');
+      }, 200); // small delay for visual completion
     }
   }, config.intervalSpeed);
 
