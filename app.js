@@ -210,6 +210,7 @@ nextBtn.onclick = async () => {
     speedMultiplier = 1;
     clearInterval(window.activeGame.timer);
   }
+  document.getElementById('timerContainer').classList.remove('hidden');
   document.getElementById('board').replaceChildren();
   document.querySelectorAll('.marker').forEach((m) => m.remove());
   await startGame(window.activeGame.mode);
