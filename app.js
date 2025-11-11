@@ -12,6 +12,7 @@ window.progress = window.progress || {
   hard: { level: 10 }, // start hard mode farther in
 };
 const ANIM_DELAY = 600;
+const DEDUCT_TARGET_ID = 'scoreValue';
 
 // ---------- Dynamic Level Generation ----------
 const gameState = {
@@ -229,8 +230,9 @@ function addScore() {
 
   gameState.score += points;
 
+  const scoreEl = document.getElementById('scoreDisplay');
+
   setTimeout(() => {
-    const scoreEl = document.getElementById('scoreDisplay');
     document.getElementById('scoreValue').textContent = gameState.score;
     scoreEl.style.animation = 'scorePulse 0.5s ease';
     setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY);
@@ -252,6 +254,70 @@ function addScore() {
   float.textContent = `+${points}`;
   popupContainer.appendChild(float);
   setTimeout(() => float.remove(), 1600);
+}
+
+// =========== Dynamic Movement ============= //
+function deductPoints(cost, sourceElement) {
+  const target = document.getElementById('scoreValue');
+  const s = sourceElement.getBoundingClientRect();
+  const t = target.getBoundingClientRect();
+
+  // Calculate coordinates
+  const startX = s.left + s.width / 2;
+  const startY = s.top + s.height / 2;
+  const endX = t.left + t.width / 2 + 50;
+  const endY = t.top + t.height / 2 + 500;
+
+  // Create float element
+  const float = document.createElement('div');
+  float.className = 'score-float';
+  float.textContent = `-${cost}`;
+  document.body.appendChild(float);
+
+  float.style.position = 'fixed';
+  float.style.left = `${startX}px`;
+  float.style.top = `${startY}px`;
+  float.style.fontWeight = '700';
+  float.style.color = '#c0392b';
+  float.style.zIndex = 9999;
+  float.style.transition =
+    'left 1s ease-out, top 1s ease-out, opacity 1s ease-out';
+  float.style.opacity = '1';
+
+  // Adjust destination path
+  let targetX = endX;
+  let targetY = endY;
+
+  if (sourceElement.id === 'eyeGlassBonus') targetX -= 100;
+  if (sourceElement.id === 'eyeGlassBonus') targetY += 50;
+  if (sourceElement.id === 'addTimeBonus') targetX += 0; // straight up
+
+  // Animate
+  requestAnimationFrame(() => {
+    float.style.left = `${targetX}px`;
+    float.style.top = `${targetY - 80}px`; // move up slightly
+    float.style.opacity = '0';
+  });
+
+  // Clean up after animation
+  setTimeout(() => float.remove(), 1000);
+
+  gameState.score -= cost;
+  const scoreEl = document.getElementById('scoreDisplay');
+  setTimeout(() => {
+    document.getElementById('scoreValue').textContent = gameState.score;
+    scoreEl.style.animation = 'scoreDeduct 0.5s ease';
+    setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY);
+
+    localStorage.setItem(
+      'goVizProgress',
+      JSON.stringify({
+        progress: window.progress,
+        round: gameState.currentRound,
+        score: gameState.score,
+      })
+    );
+  }, ANIM_DELAY * 1.3);
 }
 
 // ---------- Main Game ----------
@@ -291,10 +357,27 @@ async function startGame(mode, retry = false) {
   const checkBtn = document.getElementById('checkBtn');
   const timerContainer = document.getElementById('timerContainer');
 
-  timerContainer.style.visibility = 'visible';
-
   checkBtn.classList.remove('show');
   timerContainer.style.visibility = 'visible';
+
+  const addTimeBonus = document.getElementById('addTimeBonus');
+  const eyeGlassBonus = document.getElementById('eyeGlassBonus');
+
+  // At start: timer is active, so eyeGlass disabled
+  eyeGlassBonus.classList.add('disabled');
+  addTimeBonus.classList.remove('disabled');
+
+  addTimeBonus.addEventListener('click', () => {
+    if (addTimeBonus.classList.contains('disabled')) return;
+    deductPoints(500, addTimeBonus);
+    // TODO: add your actual add-time effect here
+  });
+
+  eyeGlassBonus.addEventListener('click', () => {
+    if (eyeGlassBonus.classList.contains('disabled')) return;
+    deductPoints(500, eyeGlassBonus);
+    // TODO: add your actual peek effect here
+  });
 
   const sgfText =
     retry && window.activeGame?.sgfText
@@ -336,12 +419,16 @@ async function startGame(mode, retry = false) {
 
       clearStones();
       toggleInteraction(true);
-      // smooth swap
-      timerBar.style.width = '0%'; // ensure full depletion
+
+      // disable AddTime / enable EyeGlass
+      addTimeBonus.classList.add('disabled');
+      eyeGlassBonus.classList.remove('disabled');
+
+      timerBar.style.width = '0%';
       setTimeout(() => {
-        timerContainer.classList.add('hidden'); // collapse it
+        timerContainer.classList.add('hidden');
         checkBtn.classList.add('show');
-      }, 200); // small delay for visual completion
+      }, 100);
     }
   }, config.intervalSpeed);
 
