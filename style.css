@@ -436,20 +436,29 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: var(--max-board);
-  margin: 0 auto 10px;
-  padding: 0 4px;
+  max-width: var(--main-width);
   font-weight: bold;
   gap: 30px;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+#scoreDisplay,
+#levelInfo {
+  margin: 0;
+  padding: 0;
+  line-height: 1.1;
+  display: inline-block;
+  font-size: 1.1em;
+  font-weight: 600;
 }
 
 #scoreDisplay {
-  font-size: 1.1em;
   text-align: left;
 }
 
 #levelInfo {
-  font-size: 1.1em;
   text-align: right;
 }
 

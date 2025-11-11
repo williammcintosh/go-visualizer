@@ -54,7 +54,7 @@ if (saved) {
 
   // update the score display on screen
   const scoreEl = document.getElementById('scoreDisplay');
-  scoreEl.textContent = `Score: ${gameState.score}`;
+  scoreEl.textContent = `Score ${gameState.score}`;
 
   continueBtn.style.display = 'inline-block';
   startBtn.textContent = 'Restart';
@@ -216,17 +216,27 @@ nextBtn.onclick = async () => {
   await startGame(window.activeGame.mode);
 };
 
-function addScore(points) {
+function addScore() {
+  const reactionTime = window.activeGame?.reactionTime || 10000;
+
+  // set up scoring curve
+  const base = 4000; // fast reaction
+  const slow = 10000; // slow reaction
+  const minPoints = 100;
+  const maxPoints = 1000;
+
+  let factor =
+    1 - Math.min(1, Math.max(0, (reactionTime - base) / (slow - base)));
+  const points = Math.floor(minPoints + factor * (maxPoints - minPoints));
+
   gameState.score += points;
 
-  // delay updating the score until float finishes
   setTimeout(() => {
     const scoreEl = document.getElementById('scoreDisplay');
     scoreEl.textContent = `Score: ${gameState.score}`;
     scoreEl.style.animation = 'scorePulse 0.5s ease';
-    setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY); // reset animation
+    setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY);
 
-    // Save progress locally
     localStorage.setItem(
       'goVizProgress',
       JSON.stringify({
@@ -235,15 +245,15 @@ function addScore(points) {
         score: gameState.score,
       })
     );
-  }, ANIM_DELAY); // wait until float "lands"
+  }, ANIM_DELAY * 1.3);
 
-  // create the floating +points
+  // floating popup
   const popupContainer = document.getElementById('scorePopup');
   const float = document.createElement('div');
   float.className = 'score-float';
   float.textContent = `+${points}`;
   popupContainer.appendChild(float);
-  setTimeout(() => float.remove(), ANIM_DELAY + 1000);
+  setTimeout(() => float.remove(), 1600);
 }
 
 // ---------- Main Game ----------
@@ -260,8 +270,13 @@ async function startGame(mode, retry = false) {
   const levelConfig = gameState.levels[level - 1] || gameState.levels[0];
   const currentLevel = window.progress[mode].level;
   gameState.currentLevel = currentLevel || 1;
-  const info = document.getElementById('levelInfo');
-  info.textContent = `Level ${gameState.currentLevel} – Round ${gameState.currentRound} of ${gameState.totalRounds}`;
+
+  document.getElementById(
+    'levelText'
+  ).textContent = `Level ${gameState.currentLevel}`;
+  document.getElementById(
+    'roundText'
+  ).textContent = `Round ${gameState.currentRound}/${gameState.totalRounds}`;
 
   const config = {
     intervalSpeed: mode === 'hard' ? 50 : 40,
@@ -315,6 +330,8 @@ async function startGame(mode, retry = false) {
       speedMultiplier = 1; // reset here
       document.body.removeEventListener('touchend', handleDoubleTap);
       document.body.removeEventListener('dblclick', handleDoubleTap);
+
+      window.activeGame.timerEndTime = Date.now();
 
       clearStones();
       toggleInteraction(true);
@@ -390,6 +407,10 @@ async function startGame(mode, retry = false) {
   }
 
   function checkAnswers() {
+    // Record players reaction time
+    window.activeGame.reactionTime =
+      Date.now() - (window.activeGame.timerEndTime || Date.now());
+
     document.querySelectorAll('.marker').forEach((m) => m.remove());
     let allCorrect = true;
 
@@ -444,7 +465,7 @@ async function startGame(mode, retry = false) {
       launchConfetti();
       nextBtn.disabled = true;
       setTimeout(() => {
-        addScore(SCORE_POINTS);
+        addScore();
         nextBtn.disabled = false;
       }, ANIM_DELAY);
     } else if (allCorrect) {
@@ -470,7 +491,7 @@ async function startGame(mode, retry = false) {
 
         if (!window.activeGame.isRetry) {
           setTimeout(() => {
-            addScore(SCORE_POINTS);
+            addScore();
             nextBtn.disabled = false;
           }, ANIM_DELAY);
         } else {
