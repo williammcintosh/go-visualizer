@@ -11,6 +11,7 @@ window.progress = window.progress || {
   easy: { level: 1 },
   hard: { level: 10 }, // start hard mode farther in
 };
+const ANIM_DELAY = 600;
 
 // ---------- Dynamic Level Generation ----------
 const gameState = {
@@ -223,7 +224,7 @@ function addScore(points) {
     const scoreEl = document.getElementById('scoreDisplay');
     scoreEl.textContent = `Score: ${gameState.score}`;
     scoreEl.style.animation = 'scorePulse 0.5s ease';
-    setTimeout(() => (scoreEl.style.animation = ''), 600); // reset animation
+    setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY); // reset animation
 
     // Save progress locally
     localStorage.setItem(
@@ -234,7 +235,7 @@ function addScore(points) {
         score: gameState.score,
       })
     );
-  }, 600); // wait until float "lands"
+  }, ANIM_DELAY); // wait until float "lands"
 
   // create the floating +points
   const popupContainer = document.getElementById('scorePopup');
@@ -242,7 +243,7 @@ function addScore(points) {
   float.className = 'score-float';
   float.textContent = `+${points}`;
   popupContainer.appendChild(float);
-  setTimeout(() => float.remove(), 1600);
+  setTimeout(() => float.remove(), ANIM_DELAY + 1000);
 }
 
 // ---------- Main Game ----------
@@ -441,6 +442,11 @@ async function startGame(mode, retry = false) {
       msg.textContent = `Congrats! 🎉 Level ${window.progress[mode].level}!`;
       levelIncreased = false;
       launchConfetti();
+      nextBtn.disabled = true;
+      setTimeout(() => {
+        addScore(SCORE_POINTS);
+        nextBtn.disabled = false;
+      }, ANIM_DELAY);
     } else if (allCorrect) {
       const praise = [
         'Incredible!',
@@ -466,12 +472,12 @@ async function startGame(mode, retry = false) {
           setTimeout(() => {
             addScore(SCORE_POINTS);
             nextBtn.disabled = false;
-          }, 600);
+          }, ANIM_DELAY);
         } else {
           // still wait a bit so the animation feels natural
           setTimeout(() => {
             nextBtn.disabled = false;
-          }, 600);
+          }, ANIM_DELAY);
         }
       }
     } else {
