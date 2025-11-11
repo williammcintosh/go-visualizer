@@ -48,12 +48,19 @@ const confirmNo = document.getElementById('confirmNo');
 
 if (saved) {
   window.progress = saved.progress;
-  gameState.currentRound = saved.round;
+  gameState.currentRound = saved.round || 1;
+  gameState.score = saved.score || 0; // restore saved score or default to 0
+
+  // update the score display on screen
+  const scoreEl = document.getElementById('scoreDisplay');
+  scoreEl.textContent = `Score: ${gameState.score}`;
+
   continueBtn.style.display = 'inline-block';
   startBtn.textContent = 'Restart';
 } else {
   continueBtn.style.display = 'none';
   startBtn.textContent = 'Start';
+  gameState.score = 0; // ensure score starts at 0 for new games
 }
 
 // Continue existing game, straight to maingame
@@ -72,6 +79,11 @@ startBtn.addEventListener('click', () => {
     localStorage.removeItem('goVizProgress');
     window.progress = { easy: { level: 1 }, hard: { level: 10 } };
     gameState.currentRound = 1;
+
+    // ADD THIS
+    gameState.score = 0;
+    document.getElementById('scoreDisplay').textContent = 'Score: 0';
+
     showScreen(difficulty, intro);
   }
 });
@@ -81,6 +93,11 @@ confirmYes.addEventListener('click', () => {
   localStorage.removeItem('goVizProgress');
   window.progress = { easy: { level: 1 }, hard: { level: 10 } };
   gameState.currentRound = 1;
+
+  // ADD THIS
+  gameState.score = 0;
+  document.getElementById('scoreDisplay').textContent = 'Score: 0';
+
   showScreen(difficulty, intro);
 });
 
@@ -207,7 +224,17 @@ function addScore(points) {
     scoreEl.textContent = `Score: ${gameState.score}`;
     scoreEl.style.animation = 'scorePulse 0.5s ease';
     setTimeout(() => (scoreEl.style.animation = ''), 600); // reset animation
-  }, 1300); // wait until float "lands"
+
+    // Save progress locally
+    localStorage.setItem(
+      'goVizProgress',
+      JSON.stringify({
+        progress: window.progress,
+        round: gameState.currentRound,
+        score: gameState.score,
+      })
+    );
+  }, 1000); // wait until float "lands"
 
   // create the floating +points
   const popupContainer = document.getElementById('scorePopup');
@@ -222,6 +249,9 @@ function addScore(points) {
 async function startGame(mode, retry = false) {
   if (!retry) window.activeGame = { mode };
 
+  // Keeps track of whether or not there was a retry
+  window.activeGame.isRetry = retry;
+
   let speedMultiplier = 1;
   let lastTap = 0;
 
@@ -231,9 +261,6 @@ async function startGame(mode, retry = false) {
   gameState.currentLevel = currentLevel || 1;
   const info = document.getElementById('levelInfo');
   info.textContent = `Level ${gameState.currentLevel} – Round ${gameState.currentRound} of ${gameState.totalRounds}`;
-
-  console.log(`=== START ${mode.toUpperCase()} | Level ${level} ===`);
-  console.log(levelConfig);
 
   const config = {
     intervalSpeed: mode === 'hard' ? 50 : 40,
@@ -404,15 +431,6 @@ async function startGame(mode, retry = false) {
       }
     }
 
-    // Save progress locally
-    localStorage.setItem(
-      'goVizProgress',
-      JSON.stringify({
-        progress: window.progress,
-        round: gameState.currentRound,
-      })
-    );
-
     const feedback = document.getElementById('feedback');
     const msg = document.getElementById('feedbackMsg');
     const nextBtn = document.getElementById('nextBtn');
@@ -440,16 +458,21 @@ async function startGame(mode, retry = false) {
       // Disable "Next Challenge" during animation
       const nextBtn = document.getElementById('nextBtn');
 
-      nextBtn.disabled = true;
-
       // Add score with delay for animation sync
       if (allCorrect) {
-        setTimeout(() => {
-          addScore(SCORE_POINTS);
-          nextBtn.disabled = false;
-        }, 800);
-      } else {
-        nextBtn.disabled = false;
+        nextBtn.disabled = true;
+
+        if (!window.activeGame.isRetry) {
+          setTimeout(() => {
+            addScore(SCORE_POINTS);
+            nextBtn.disabled = false;
+          }, 800);
+        } else {
+          // still wait a bit so the animation feels natural
+          setTimeout(() => {
+            nextBtn.disabled = false;
+          }, 600);
+        }
       }
     } else {
       msg.textContent = 'Missed a few!';
