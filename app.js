@@ -368,10 +368,64 @@ async function startGame(mode, retry = false) {
   eyeGlassBonus.classList.add('disabled');
   addTimeBonus.classList.remove('disabled');
 
+  let isRefilling = false;
+
   addTimeBonus.addEventListener('click', () => {
-    if (addTimeBonus.classList.contains('disabled')) return;
+    if (addTimeBonus.classList.contains('disabled') || isRefilling) return;
+    isRefilling = true;
+    addTimeBonus.classList.add('disabled');
     deductPoints(500, addTimeBonus);
-    // TODO: add your actual add-time effect here
+
+    const timerBar = document.getElementById('timerBar');
+    const duration = 800;
+    const holdTime = 600;
+    const startWidth = parseFloat(timerBar.style.width) || 0;
+    const startTime = performance.now();
+
+    const savedTimer = window.activeGame.timer;
+    clearInterval(window.activeGame.timer);
+    window.activeGame.timer = null;
+
+    const animateUp = (now) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const currentWidth = startWidth + (100 - startWidth) * progress;
+      timerBar.style.width = currentWidth + '%';
+
+      if (progress < 1) {
+        requestAnimationFrame(animateUp);
+      } else {
+        setTimeout(() => {
+          timeLeft = config.time;
+          window.activeGame.timer = savedTimer;
+          window.activeGame.timer = setInterval(() => {
+            timeLeft -= 0.1 * speedMultiplier;
+            timerBar.style.width = (timeLeft / config.time) * 100 + '%';
+            if (timeLeft <= 0 && window.activeGame.timer) {
+              clearInterval(window.activeGame.timer);
+              window.activeGame.timer = null;
+              speedMultiplier = 1;
+              document.body.removeEventListener('touchend', handleDoubleTap);
+              document.body.removeEventListener('dblclick', handleDoubleTap);
+              window.activeGame.timerEndTime = Date.now();
+              clearStones();
+              toggleInteraction(true);
+              addTimeBonus.classList.add('disabled');
+              eyeGlassBonus.classList.remove('disabled');
+              timerBar.style.width = '0%';
+              setTimeout(() => {
+                timerContainer.classList.add('hidden');
+                checkBtn.classList.add('show');
+              }, 100);
+            }
+          }, config.intervalSpeed);
+
+          isRefilling = false;
+          addTimeBonus.classList.remove('disabled'); // re-enable
+        }, holdTime);
+      }
+    };
+
+    requestAnimationFrame(animateUp);
   });
 
   eyeGlassBonus.addEventListener('click', () => {
