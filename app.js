@@ -12,6 +12,8 @@ const DOUBLE_TAP_WINDOW = 300;
 const SPEED_BOOST_MULTIPLIER = 20;
 let speedMultiplier = 1;
 let lastTap = 0;
+let addTimeHandler = null;
+let eyeGlassHandler = null;
 
 window.progress = window.progress || {
   easy: { level: 1 },
@@ -430,7 +432,11 @@ async function startGame(mode, retry = false) {
   addTimeBonus.classList.remove('disabled');
   updateBonusAvailability();
 
-  addTimeBonus.addEventListener('click', () => {
+  if (addTimeHandler) {
+    addTimeBonus.removeEventListener('click', addTimeHandler);
+  }
+
+  addTimeHandler = () => {
     if (
       addTimeBonus.classList.contains('disabled') ||
       gameState.score < 500 || // not enough money
@@ -501,14 +507,16 @@ async function startGame(mode, retry = false) {
     };
 
     requestAnimationFrame(animateUp);
-  });
+  };
 
-  eyeGlassBonus.addEventListener('click', () => {
-    if (
-      gameState.score < 500 ||
-      addTimeBonus.classList.contains('disabled') ||
-      isRefilling
-    ) {
+  addTimeBonus.addEventListener('click', addTimeHandler);
+
+  if (eyeGlassHandler) {
+    eyeGlassBonus.removeEventListener('click', eyeGlassHandler);
+  }
+
+  eyeGlassHandler = () => {
+    if (gameState.score < 500 || !canUseEyeGlass || isRefilling) {
       return;
     }
     deductPoints(500, eyeGlassBonus);
@@ -557,7 +565,9 @@ async function startGame(mode, retry = false) {
       ],
       { duration: 1200, easing: 'ease-in-out' }
     );
-  });
+  };
+
+  eyeGlassBonus.addEventListener('click', eyeGlassHandler);
 
   const sgfText =
     retry && window.activeGame?.sgfText
