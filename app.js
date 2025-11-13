@@ -958,13 +958,13 @@ function createTutorialController() {
       setHold(true);
       await showStep(
         context.board,
-        'Memorize the locations and colors of these five stones.',
+        '[1/5] Memorize the locations and colors of these five stones.',
         { placement: 'center', maxWidth: 360 }
       );
       if (!active) return;
       await showStep(
         context.timerContainer,
-        'Memorize those stones before the timer runs out.',
+        '[2/5] Memorize those stones before the timer runs out.',
         { placement: 'top' }
       );
       if (!active) return;
@@ -976,7 +976,7 @@ function createTutorialController() {
       grantStarterBoost();
       await showStep(
         context.addTimeBonus,
-        'You can purchase more time by pressing this button while the timer is running.',
+        '[3/5] You can purchase more time by pressing this button while the timer is running.',
         { placement: 'top', centerGame: true, maxWidth: 360 }
       );
       if (!active) return;
@@ -989,7 +989,7 @@ function createTutorialController() {
       setHold(true);
       await showStep(
         context.timerContainer,
-        'Alternatively, you can double-tap anywhere to speed up the timer bar.',
+        '[4/5] Alternatively, you can double-tap anywhere to speed up the timer bar.',
         { placement: 'top' }
       );
       if (!active) return;
@@ -1004,7 +1004,7 @@ function createTutorialController() {
       context.clearBoard?.();
       await showStep(
         context.eyeGlassBonus,
-        'If you need a hint, tap the eyeglass to reveal a random stone.',
+        '[5/5] If you need a hint, tap the eyeglass to reveal a random stone.',
         { placement: 'top', centerGame: true, maxWidth: 360 }
       );
       if (!active) return;
