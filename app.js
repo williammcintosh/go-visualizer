@@ -258,6 +258,7 @@ nextBtn.onclick = async () => {
 function addScore(retryCount = 0) {
   const scoreEl = document.getElementById('scoreDisplay');
   const scoreValueEl = document.getElementById('scoreValue');
+  const feedbackMsgEl = document.getElementById('feedbackMsg');
   const mainGame = document.getElementById('mainGame');
   const reactionTime = window.activeGame?.reactionTime || 10000;
 
@@ -273,7 +274,56 @@ function addScore(retryCount = 0) {
 
   gameState.score += points;
 
-  setTimeout(() => {
+  const startRect =
+    feedbackMsgEl?.getBoundingClientRect() ||
+    scoreValueEl.getBoundingClientRect();
+  const endRect = scoreValueEl.getBoundingClientRect();
+
+  const start = {
+    x: startRect.left + startRect.width / 2,
+    y: startRect.top + startRect.height / 2,
+  };
+
+  const end = {
+    x: endRect.left + endRect.width / 2,
+    y: endRect.top + endRect.height / 2,
+  };
+
+  const float = document.createElement('div');
+  float.className = 'score-float score-float--reward';
+  float.textContent = `+${points}`;
+  float.style.transform = `translate(${start.x}px, ${start.y}px) scale(0.9)`;
+  document.body.appendChild(float);
+
+  const animationDuration = 1000;
+  const animation = float.animate(
+    [
+      {
+        transform: `translate(${start.x}px, ${start.y}px) scale(0.85)`,
+        opacity: 0,
+      },
+      {
+        transform: `translate(${start.x}px, ${start.y - 25}px) scale(1.1)`,
+        opacity: 1,
+        offset: 0.25,
+      },
+      {
+        transform: `translate(${end.x}px, ${end.y}px) scale(0.9)`,
+        opacity: 0,
+      },
+    ],
+    {
+      duration: animationDuration,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'forwards',
+    }
+  );
+
+  let settled = false;
+  const finalizeAddition = () => {
+    if (settled) return;
+    settled = true;
+    float.remove();
     scoreValueEl.textContent = gameState.score;
     scoreEl.style.animation = 'scorePulse 0.5s ease';
     setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY);
@@ -288,15 +338,10 @@ function addScore(retryCount = 0) {
       })
     );
     refreshHomeButtons();
-  }, ANIM_DELAY * 1.3);
+  };
 
-  // floating popup
-  const popupContainer = document.getElementById('scorePopup');
-  const float = document.createElement('div');
-  float.className = 'score-float score-float--reward';
-  float.textContent = `+${points}`;
-  popupContainer.appendChild(float);
-  setTimeout(() => float.remove(), 1600);
+  animation.addEventListener('finish', finalizeAddition);
+  setTimeout(finalizeAddition, animationDuration + 100);
 }
 
 // =========== Dynamic Movement ============= //
