@@ -55,6 +55,12 @@ const confirmModal = document.getElementById('confirmModal');
 const confirmYes = document.getElementById('confirmYes');
 const confirmNo = document.getElementById('confirmNo');
 
+function refreshHomeButtons() {
+  const hasSave = Boolean(localStorage.getItem('goVizProgress'));
+  continueBtn.style.display = hasSave ? 'inline-block' : 'none';
+  startBtn.textContent = hasSave ? 'Restart' : 'Start';
+}
+
 function handleDoubleTap(event) {
   if (!window.activeGame?.timer || isRefilling) return;
 
@@ -88,16 +94,10 @@ if (saved) {
 
   // update the score display on screen
   document.getElementById('scoreValue').textContent = gameState.score;
-
-  updateBonusAvailability();
-
-  continueBtn.style.display = 'inline-block';
-  startBtn.textContent = 'Restart';
 } else {
-  continueBtn.style.display = 'none';
-  startBtn.textContent = 'Start';
   gameState.score = 0; // ensure score starts at 0 for new games
 }
+refreshHomeButtons();
 updateBonusAvailability();
 
 // Continue existing game, straight to maingame
@@ -122,6 +122,7 @@ startBtn.addEventListener('click', () => {
     document.getElementById('scoreValue').textContent = '0';
 
     showScreen(difficulty, intro);
+    refreshHomeButtons();
   }
 });
 
@@ -136,6 +137,7 @@ confirmYes.addEventListener('click', () => {
   document.getElementById('scoreValue').textContent = '0';
 
   showScreen(difficulty, intro);
+  refreshHomeButtons();
 });
 
 confirmNo.addEventListener('click', () => {
@@ -285,6 +287,7 @@ function addScore(retryCount = 0) {
         score: gameState.score,
       })
     );
+    refreshHomeButtons();
   }, ANIM_DELAY * 1.3);
 
   // floating popup
@@ -358,6 +361,7 @@ function deductPoints(cost, sourceElement) {
         score: gameState.score,
       })
     );
+    refreshHomeButtons();
   }, ANIM_DELAY * 1.3);
 }
 
@@ -421,6 +425,7 @@ async function startGame(mode, retry = false) {
   const timerContainer = document.getElementById('timerContainer');
 
   checkBtn.classList.remove('show');
+  timerContainer.classList.remove('hidden');
   timerContainer.style.visibility = 'visible';
 
   const addTimeBonus = document.getElementById('addTimeBonus');
