@@ -86,15 +86,30 @@ function handleDoubleTap(event) {
   }
 
   const now = Date.now();
-  if (now - lastTap < DOUBLE_TAP_WINDOW) {
+  const isDoubleTap = now - lastTap < DOUBLE_TAP_WINDOW;
+  if (isDoubleTap) {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
     speedMultiplier = SPEED_BOOST_MULTIPLIER;
   }
   lastTap = now;
 }
 
+function preventPinchZoom(event) {
+  if (event.touches && event.touches.length > 1 && event.cancelable) {
+    event.preventDefault();
+  }
+}
+
 function initDoubleTapListeners() {
-  document.body.addEventListener('touchend', handleDoubleTap);
+  document.body.addEventListener('touchend', handleDoubleTap, {
+    passive: false,
+  });
   document.body.addEventListener('dblclick', handleDoubleTap);
+  document.body.addEventListener('touchstart', preventPinchZoom, {
+    passive: false,
+  });
 }
 
 if (document.readyState === 'loading') {
@@ -944,7 +959,7 @@ function createTutorialController() {
       await showStep(
         context.board,
         'Memorize the locations and colors of these five stones.',
-        { placement: 'bottom' }
+        { placement: 'center', maxWidth: 360 }
       );
       if (!active) return;
       await showStep(
@@ -1229,6 +1244,10 @@ function createTutorialController() {
         top = rect.top + rect.height / 2;
         left = rect.left - margin;
         transform = 'translate(-100%, -50%)';
+      } else if (resolvedPlacement === 'center') {
+        top = rect.top + rect.height / 2;
+        left = rect.left + rect.width / 2;
+        transform = 'translate(-50%, -50%)';
       }
     } else if (opts.centerGame) {
       const wrapper = document.querySelector('.game-wrapper');
