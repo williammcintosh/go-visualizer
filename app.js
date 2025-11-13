@@ -293,7 +293,7 @@ function addScore(retryCount = 0) {
   // floating popup
   const popupContainer = document.getElementById('scorePopup');
   const float = document.createElement('div');
-  float.className = 'score-float';
+  float.className = 'score-float score-float--reward';
   float.textContent = `+${points}`;
   popupContainer.appendChild(float);
   setTimeout(() => float.remove(), 1600);
@@ -301,56 +301,61 @@ function addScore(retryCount = 0) {
 
 // =========== Dynamic Movement ============= //
 function deductPoints(cost, sourceElement) {
-  const target = document.getElementById('scoreValue');
-  const s = sourceElement.getBoundingClientRect();
-  const t = target.getBoundingClientRect();
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const scoreValue = document.getElementById('scoreValue');
+  const startRect = sourceElement.getBoundingClientRect();
+  const endRect = scoreValue.getBoundingClientRect();
 
-  // Calculate coordinates
-  const startX = s.left + s.width / 2;
-  const startY = s.top + s.height / 2;
-  const endX = t.left + t.width / 2 + 50;
-  const endY = t.top + t.height / 2 + 500;
+  const start = {
+    x: startRect.left + startRect.width / 2,
+    y: startRect.top + startRect.height / 2,
+  };
 
-  // Create float element
+  const end = {
+    x: endRect.left + endRect.width / 2,
+    y: endRect.top + endRect.height / 2,
+  };
+
   const float = document.createElement('div');
-  float.className = 'score-float';
+  float.className = 'score-float score-float--deduct';
   float.textContent = `-${cost}`;
+  float.style.transform = `translate(${start.x}px, ${start.y}px) scale(1)`;
   document.body.appendChild(float);
 
-  float.style.position = 'fixed';
-  float.style.left = `${startX}px`;
-  float.style.top = `${startY}px`;
-  float.style.fontWeight = '700';
-  float.style.color = '#c0392b';
-  float.style.zIndex = 9999;
-  float.style.transition =
-    'left 1s ease-out, top 1s ease-out, opacity 1s ease-out';
-  float.style.opacity = '1';
-
-  // Adjust destination path
-  let targetX = endX;
-  let targetY = endY;
-
-  if (sourceElement.id === 'eyeGlassBonus') targetX -= 100;
-  if (sourceElement.id === 'eyeGlassBonus') targetY += 50;
-  if (sourceElement.id === 'addTimeBonus') targetX += 0; // straight up
-
-  // Animate
-  requestAnimationFrame(() => {
-    float.style.left = `${targetX}px`;
-    float.style.top = `${targetY - 80}px`; // move up slightly
-    float.style.opacity = '0';
-  });
-
-  // Clean up after animation
-  setTimeout(() => float.remove(), 1000);
+  const animationDuration = 900;
+  const animation = float.animate(
+    [
+      {
+        transform: `translate(${start.x}px, ${start.y}px) scale(0.9)`,
+        opacity: 0,
+      },
+      {
+        transform: `translate(${start.x}px, ${start.y - 20}px) scale(1.05)`,
+        opacity: 1,
+        offset: 0.2,
+      },
+      {
+        transform: `translate(${end.x}px, ${end.y}px) scale(0.6)`,
+        opacity: 0,
+      },
+    ],
+    {
+      duration: animationDuration,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'forwards',
+    }
+  );
 
   gameState.score -= cost;
-  const scoreEl = document.getElementById('scoreDisplay');
-  setTimeout(() => {
-    document.getElementById('scoreValue').textContent = gameState.score;
-    scoreEl.style.animation = 'scoreDeduct 0.5s ease';
-    setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY);
+
+  let settled = false;
+  const finalizeDeduction = () => {
+    if (settled) return;
+    settled = true;
+    float.remove();
+    scoreValue.textContent = gameState.score;
+    scoreDisplay.style.animation = 'scoreDeduct 0.5s ease';
+    setTimeout(() => (scoreDisplay.style.animation = ''), ANIM_DELAY);
     updateBonusAvailability();
 
     localStorage.setItem(
@@ -362,7 +367,10 @@ function deductPoints(cost, sourceElement) {
       })
     );
     refreshHomeButtons();
-  }, ANIM_DELAY * 1.3);
+  };
+
+  animation.addEventListener('finish', finalizeDeduction);
+  setTimeout(finalizeDeduction, animationDuration + 100);
 }
 
 function updateBonusAvailability() {

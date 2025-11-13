@@ -1,7 +1,8 @@
 /* ========= Root Variables ========= */
 :root {
-  --main-width: 80vw; /* relative to viewport width */
-  --max-board: 400px; /* board cap for desktop */
+  --layout-width: min(90vw, 420px);
+  --main-width: var(--layout-width);
+  --max-board: var(--layout-width);
   --green: #4caf50;
   --green-hover: #43a047;
   --tan-bg: tan;
@@ -22,39 +23,36 @@ body {
 body {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   height: 100vh;
   margin: 0;
   background: var(--tan-bg);
   font-family: system-ui, sans-serif;
-  transform: scale(1.1);
-  transform-origin: top center;
-  align-items: flex-start;
   padding-top: 4vh !important;
 }
 
 /* The whole game area is centered and doesn’t resize */
 .game-wrapper {
   position: relative;
-}
-
-#timerContainer {
-  width: 100%;
-  height: 40px;
-  background: #ccc;
-  border-radius: 10px;
-  overflow: hidden;
-  margin-top: 0.5rem;
+  width: var(--layout-width);
+  max-width: var(--max-board);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
 }
 
 #timerContainer {
   position: relative;
-  width: 80vw;
-  max-width: 300px;
+  width: 100%;
   height: 50px;
   font-size: 1.2rem;
-  margin-top: 3vh;
+  background: #ccc;
+  border-radius: 10px;
+  overflow: hidden;
   z-index: 1;
+  margin: 0 auto;
 }
 
 #timerBar {
@@ -66,14 +64,15 @@ body {
 
 /* =========== Bonus ===========*/
 #bonusContainer {
-  position: absolute;
-  bottom: -20vh;
+  position: relative;
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   align-items: center;
-  width: var(--main-width);
-  max-width: var(--max-board);
+  width: 100%;
   min-height: 60px;
+  margin-top: 0.5rem;
+  gap: 1.5rem;
+  flex-wrap: wrap;
   pointer-events: auto;
 }
 
@@ -114,7 +113,7 @@ body {
 /* ========= Go Board ========= */
 #board {
   position: relative;
-  width: var(--main-width);
+  width: 100%;
   max-width: var(--max-board);
   aspect-ratio: 1 / 1;
   margin: 0 auto;
@@ -183,37 +182,6 @@ body {
   opacity: 0.8;
 }
 
-/* Check button same size as timer */
-#checkBtn {
-  position: absolute;
-  top: calc(100% + 3vh); /* sits exactly where timer was */
-  width: 80vw;
-  max-width: 300px;
-  height: 50px;
-  font-size: 1.2rem;
-  z-index: 2;
-  display: none;
-  transition: opacity 0.4s ease;
-}
-
-/* Hide Check completely when inactive */
-#checkBtn.hidden,
-#timerContainer.hidden {
-  opacity: 0;
-  visibility: hidden;
-}
-
-#timerContainer.hidden {
-  height: 0;
-  opacity: 0;
-  margin-top: 0;
-  visibility: hidden;
-}
-
-#checkBtn.show {
-  display: block;
-}
-
 #mainGame {
   display: flex;
   flex-direction: column;
@@ -232,8 +200,8 @@ body {
   padding: 0.5rem;
   text-align: center;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  width: 80vw;
-  max-width: 300px;
+  width: 100%;
+  max-width: var(--max-board);
   display: none;
   z-index: 10;
   transition: opacity 0.3s ease;
@@ -272,21 +240,30 @@ body {
 }
 
 #checkBtn {
-  width: 80vw;
-  max-width: 300px;
+  width: 100%;
   height: 50px;
   font-size: 1.2rem;
-  position: absolute;
-  top: 0; /* sits exactly where the timer is */
+  position: relative;
   z-index: 2;
   display: none;
-  pointer-events: none;
+  margin: 0 auto;
+  transition: opacity 0.4s ease;
+}
+
+#checkBtn.hidden,
+#timerContainer.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+#timerContainer.hidden {
+  height: 0;
+  margin-top: 0;
 }
 
 #checkBtn.show {
   display: block;
   opacity: 1;
-  pointer-events: auto;
 }
 
 /* ========= Global Button Styling ========= */
@@ -495,10 +472,11 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: var(--main-width);
+  width: 100%;
+  max-width: var(--max-board);
   font-weight: bold;
   gap: 30px;
-  margin: 0;
+  margin: 0 0 0.5rem;
   padding: 0;
   line-height: 1;
 }
@@ -532,12 +510,24 @@ button:disabled {
 
 .score-float {
   pointer-events: none;
-  transition: all 1s ease-out;
-  color: #4caf50;
   font-size: 1.6em;
   font-weight: bold;
-  opacity: 1;
+}
+
+.score-float--reward {
+  color: #4caf50;
   animation: scoreRise 0.7s ease-out forwards;
+}
+
+.score-float--deduct {
+  position: fixed;
+  left: 0;
+  top: 0;
+  color: #c0392b;
+  animation: none;
+  opacity: 0;
+  z-index: 9999;
+  pointer-events: none;
 }
 
 .hint-stone {
@@ -606,8 +596,9 @@ button:disabled {
 /* ========= Mobile Tweaks ========= */
 @media (max-width: 600px) {
   :root {
-    --main-width: 70vw !important;
-    --max-board: 70vw !important;
+    --layout-width: min(90vw, 360px);
+    --main-width: var(--layout-width);
+    --max-board: var(--layout-width);
   }
 
   body {
@@ -615,33 +606,20 @@ button:disabled {
     justify-content: center;
     align-items: flex-start;
     padding-top: 4vh !important;
-    transform: scale(1);
   }
 
   .game-wrapper {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    height: auto;
-    gap: 0.5rem;
     margin: 0 auto;
+    gap: 0.75rem;
   }
 
   #board {
-    margin-top: 1.5rem !important;
-    position: relative;
-    width: 70vw !important;
-    height: 70vw !important;
-    margin: 1.5rem auto 0 auto !important;
+    margin-top: 1rem !important;
   }
 
   #checkBtn {
-    margin-top: 0.5rem !important;
-    font-size: 6vw !important;
-    padding: 8px 0 !important;
-    width: 100% !important;
+    margin-top: 0.5rem;
+    font-size: clamp(18px, 6vw, 24px);
   }
 
   #feedback {
@@ -670,15 +648,5 @@ button:disabled {
   .feedback-bottom-row button {
     flex: 1;
     margin: 0;
-  }
-
-  #checkBtn,
-  #timerContainer {
-    transition: opacity 0.3s ease;
-    opacity: 1;
-    visibility: visible;
-    margin-top: 3vh;
-    position: relative;
-    top: 5vh;
   }
 }
