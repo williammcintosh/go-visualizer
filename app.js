@@ -67,12 +67,12 @@ const gameState = {
 };
 gameState.score = gameState.score || 0;
 
-const base = { stones: 5, board: 4, time: 20 };
+const base = { stones: 5, board: 4, time: 40 };
 
 for (let i = 1; i <= 50; i++) {
   const boardSize = base.board + Math.floor((i - 1) / 5);
   const stones = base.stones + (i - 1);
-  const time = Math.max(5, base.time - (i - 1));
+  const time = Math.max(20, base.time - (i - 1) * 3);
   gameState.levels.push({
     level: i,
     stones,
