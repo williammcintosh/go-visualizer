@@ -4,7 +4,7 @@ const intro = document.getElementById('intro');
 const difficulty = document.getElementById('difficulty');
 const mainGame = document.getElementById('mainGame');
 const aboutModal = document.getElementById('aboutModal');
-let currentMode = 'easy';
+let currentMode = 'position';
 let isRefilling = false;
 let canUseEyeGlass = false;
 const DOUBLE_TAP_WINDOW = 300;
@@ -17,13 +17,46 @@ let addTimeHandler = null;
 let eyeGlassHandler = null;
 const tutorialController = createTutorialController();
 
-window.progress = window.progress || {
-  easy: { level: 1 },
-  hard: { level: 10 }, // start hard mode farther in
+const DEFAULT_PROGRESS = {
+  position: { level: 1 },
+  sequence: { level: 1 },
 };
+const MODE_INTERVAL_SPEED = {
+  position: 40,
+  sequence: 45,
+};
+
+function normalizeProgress(progress = {}) {
+  return {
+    position: {
+      level:
+        progress.position?.level ??
+        progress.easy?.level ??
+        DEFAULT_PROGRESS.position.level,
+    },
+    sequence: {
+      level:
+        progress.sequence?.level ??
+        progress.hard?.level ??
+        DEFAULT_PROGRESS.sequence.level,
+    },
+  };
+}
+
+window.progress = normalizeProgress(window.progress);
 const ANIM_DELAY = 600;
 const DEDUCT_TARGET_ID = 'scoreValue';
 const BONUS_COST = 500;
+const POSITION_BONUS = 200;
+const COLOR_BONUS = 200;
+const SPEED_BONUS_MAX = 300;
+const SEQUENCE_BONUS = 250;
+const REACTION_TIME_BASE = 4000;
+const REACTION_TIME_SLOW = 10000;
+const SCORE_STEP_DELAY = 8;
+const SCORE_AWARD_PAUSE = 180;
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ---------- Dynamic Level Generation ----------
 const gameState = {
@@ -46,6 +79,107 @@ for (let i = 1; i <= 50; i++) {
     boardSize,
     time,
     rounds: 10,
+  });
+}
+
+function persistProgress() {
+  localStorage.setItem(
+    'goVizProgress',
+    JSON.stringify({
+      progress: window.progress,
+      round: gameState.currentRound,
+      score: gameState.score,
+    })
+  );
+}
+
+function calculateSpeedBonus(reactionTime = REACTION_TIME_SLOW) {
+  const normalized =
+    1 -
+    Math.min(
+      1,
+      Math.max(
+        0,
+        (reactionTime - REACTION_TIME_BASE) /
+          (REACTION_TIME_SLOW - REACTION_TIME_BASE)
+      )
+    );
+  return Math.round(normalized * SPEED_BONUS_MAX);
+}
+
+function getAwardDuration(amount) {
+  return Math.max(Math.round((amount * SCORE_STEP_DELAY + 400) * 0.85), 600);
+}
+
+function showScoreFloat(label, amount, duration = getAwardDuration(amount)) {
+  const scoreValueEl = document.getElementById('scoreValue');
+  if (!scoreValueEl) return Promise.resolve();
+  const startRect = scoreValueEl.getBoundingClientRect();
+  const float = document.createElement('div');
+  float.className = 'score-float';
+  float.textContent = `+${amount}  ${label}`;
+  const startX = startRect.left + startRect.width / 2;
+  const startY = startRect.top - 16;
+  float.style.transform = `translate(${startX}px, ${startY}px)`;
+  document.body.appendChild(float);
+  const animation = float.animate(
+    [
+      { transform: `translate(${startX}px, ${startY}px)`, opacity: 1 },
+      {
+        transform: `translate(${startX}px, ${startY - 20}px)`,
+        opacity: 0.9,
+        offset: 0.65,
+      },
+      {
+        transform: `translate(${startX}px, ${startY - 22}px)`,
+        opacity: 0.25,
+        offset: 0.95,
+      },
+      {
+        transform: `translate(${startX}px, ${startY - 25}px)`,
+        opacity: 0,
+      },
+    ],
+    {
+      duration,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'forwards',
+    }
+  );
+  return animation.finished.then(() => float.remove());
+}
+
+function animateScoreValue(amount, duration = getAwardDuration(amount)) {
+  if (!amount || amount <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const scoreValueEl = document.getElementById('scoreValue');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    let current = gameState.score;
+    const target = current + amount;
+    if (scoreValueEl) {
+      scoreValueEl.animate(
+        [
+          { transform: 'scale(1)', opacity: 0.9 },
+          { transform: 'scale(1.15)', opacity: 1 },
+          { transform: 'scale(1)', opacity: 0.9 },
+        ],
+        {
+          duration,
+          easing: 'ease-out',
+          fill: 'forwards',
+        }
+      );
+    }
+    const stepDelay = Math.max(4, Math.floor(duration / amount));
+    const timer = setInterval(() => {
+      current += 1;
+      gameState.score = current;
+      if (scoreValueEl) scoreValueEl.textContent = current;
+      if (current >= target) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, SCORE_STEP_DELAY);
   });
 }
 
@@ -119,13 +253,14 @@ if (document.readyState === 'loading') {
 }
 
 if (saved) {
-  window.progress = saved.progress;
+  window.progress = normalizeProgress(saved.progress);
   gameState.currentRound = saved.round || 1;
   gameState.score = saved.score || 0; // restore saved score or default to 0
 
   // update the score display on screen
   document.getElementById('scoreValue').textContent = gameState.score;
 } else {
+  window.progress = normalizeProgress();
   gameState.score = 0; // ensure score starts at 0 for new games
 }
 refreshHomeButtons();
@@ -133,9 +268,8 @@ updateBonusAvailability();
 
 // Continue existing game, straight to maingame
 continueBtn.addEventListener('click', () => {
-  intro.classList.remove('active');
-  mainGame.style.display = 'block';
-  startGame('easy');
+  mainGame.style.display = 'none';
+  showScreen(difficulty, intro);
 });
 
 // Restart confirmation
@@ -145,7 +279,7 @@ startBtn.addEventListener('click', () => {
     confirmModal.classList.add('active');
   } else {
     localStorage.removeItem('goVizProgress');
-    window.progress = { easy: { level: 1 }, hard: { level: 10 } };
+    window.progress = normalizeProgress();
     gameState.currentRound = 1;
 
     // ADD THIS
@@ -161,7 +295,7 @@ startBtn.addEventListener('click', () => {
 confirmYes.addEventListener('click', () => {
   confirmModal.classList.remove('active');
   localStorage.removeItem('goVizProgress');
-  window.progress = { easy: { level: 1 }, hard: { level: 10 } };
+  window.progress = normalizeProgress();
   gameState.currentRound = 1;
 
   // ADD THIS
@@ -299,93 +433,35 @@ nextBtn.onclick = async () => {
   await startGame(window.activeGame.mode);
 };
 
-function addScore(retryCount = 0) {
-  const scoreEl = document.getElementById('scoreDisplay');
-  const scoreValueEl = document.getElementById('scoreValue');
-  const feedbackMsgEl = document.getElementById('feedbackMsg');
-  const mainGame = document.getElementById('mainGame');
-  const reactionTime = window.activeGame?.reactionTime || 10000;
+async function addScore({
+  reactionTime = REACTION_TIME_SLOW,
+  finalBoardCorrect = false,
+  sequenceOrderIssues = 0,
+} = {}) {
+  if (!finalBoardCorrect) return;
+  const breakdown = [
+    { label: 'Correct positions', value: POSITION_BONUS },
+    { label: 'Correct colors', value: COLOR_BONUS },
+  ];
+  const speedBonus = calculateSpeedBonus(reactionTime);
+  if (speedBonus) {
+    breakdown.push({ label: 'Speed bonus', value: speedBonus });
+  }
+  if (currentMode === 'sequence' && sequenceOrderIssues === 0) {
+    breakdown.push({ label: 'Perfect sequence', value: SEQUENCE_BONUS });
+  }
+  if (!breakdown.length) return;
 
-  // set up scoring curve
-  const base = 4000; // fast reaction
-  const slow = 10000; // slow reaction
-  const minPoints = 100;
-  const maxPoints = 1000;
+  for (const award of breakdown) {
+    const floatPromise = showScoreFloat(award.label, award.value);
+    const scorePromise = animateScoreValue(award.value);
+    await Promise.all([floatPromise, scorePromise]);
+    await delay(SCORE_AWARD_PAUSE);
+  }
 
-  let factor =
-    1 - Math.min(1, Math.max(0, (reactionTime - base) / (slow - base)));
-  const points = Math.floor(minPoints + factor * (maxPoints - minPoints));
-
-  gameState.score += points;
-
-  const startRect =
-    feedbackMsgEl?.getBoundingClientRect() ||
-    scoreValueEl.getBoundingClientRect();
-  const endRect = scoreValueEl.getBoundingClientRect();
-
-  const start = {
-    x: startRect.left + startRect.width / 2,
-    y: startRect.top + startRect.height / 2,
-  };
-
-  const end = {
-    x: endRect.left + endRect.width / 2,
-    y: endRect.top + endRect.height / 2,
-  };
-
-  const float = document.createElement('div');
-  float.className = 'score-float score-float--reward';
-  float.textContent = `+${points}`;
-  float.style.transform = `translate(${start.x}px, ${start.y}px) scale(0.9)`;
-  document.body.appendChild(float);
-
-  const animationDuration = 1000;
-  const animation = float.animate(
-    [
-      {
-        transform: `translate(${start.x}px, ${start.y}px) scale(0.85)`,
-        opacity: 0,
-      },
-      {
-        transform: `translate(${start.x}px, ${start.y - 25}px) scale(1.1)`,
-        opacity: 1,
-        offset: 0.25,
-      },
-      {
-        transform: `translate(${end.x}px, ${end.y}px) scale(0.9)`,
-        opacity: 0,
-      },
-    ],
-    {
-      duration: animationDuration,
-      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-      fill: 'forwards',
-    }
-  );
-
-  let settled = false;
-  const finalizeAddition = () => {
-    if (settled) return;
-    settled = true;
-    float.remove();
-    scoreValueEl.textContent = gameState.score;
-    scoreEl.style.animation = 'scorePulse 0.5s ease';
-    setTimeout(() => (scoreEl.style.animation = ''), ANIM_DELAY);
-    updateBonusAvailability();
-
-    localStorage.setItem(
-      'goVizProgress',
-      JSON.stringify({
-        progress: window.progress,
-        round: gameState.currentRound,
-        score: gameState.score,
-      })
-    );
-    refreshHomeButtons();
-  };
-
-  animation.addEventListener('finish', finalizeAddition);
-  setTimeout(finalizeAddition, animationDuration + 100);
+  persistProgress();
+  updateBonusAvailability();
+  refreshHomeButtons();
 }
 
 // =========== Dynamic Movement ============= //
@@ -446,15 +522,7 @@ function deductPoints(cost, sourceElement) {
     scoreDisplay.style.animation = 'scoreDeduct 0.5s ease';
     setTimeout(() => (scoreDisplay.style.animation = ''), ANIM_DELAY);
     updateBonusAvailability();
-
-    localStorage.setItem(
-      'goVizProgress',
-      JSON.stringify({
-        progress: window.progress,
-        round: gameState.currentRound,
-        score: gameState.score,
-      })
-    );
+    persistProgress();
     refreshHomeButtons();
   };
 
@@ -507,6 +575,7 @@ async function startGame(mode, retry = false) {
 
   // Keeps track of whether or not there was a retry
   window.activeGame.isRetry = retry;
+  window.activeGame.sequenceHistory = [];
 
   speedMultiplier = 1;
   lastTap = 0;
@@ -524,7 +593,7 @@ async function startGame(mode, retry = false) {
   ).textContent = `Round ${gameState.currentRound}/${gameState.totalRounds}`;
 
   const config = {
-    intervalSpeed: mode === 'hard' ? 50 : 40,
+    intervalSpeed: MODE_INTERVAL_SPEED[mode] ?? 40,
     stoneCount: levelConfig.stones,
     size: levelConfig.boardSize,
     time: levelConfig.time,
@@ -751,12 +820,63 @@ async function startGame(mode, retry = false) {
     clearInterval(window.activeGame.timer);
   }
 
-  stones.forEach((s) => {
-    const inter = document.querySelector(
-      `.intersection[data-x="${s.x}"][data-y="${s.y}"]`
-    );
-    if (inter) inter.classList.add(s.color);
-  });
+  const getIntersection = (x, y) =>
+    board.querySelector(`.intersection[data-x="${x}"][data-y="${y}"]`);
+
+  const renderFinalStones = () => {
+    if (currentMode === 'position') {
+      clearStones();
+    }
+    stones.forEach((s) => {
+      const inter = getIntersection(s.x, s.y);
+      if (inter) {
+        inter.classList.remove('black', 'white');
+        inter.classList.add(s.color);
+      }
+    });
+  };
+
+  const updateSequenceIntersections = (prevMap, nextMap) => {
+    for (const key of Object.keys(prevMap)) {
+      if (nextMap[key]) continue;
+      const [x, y] = key.split(',').map(Number);
+      const inter = getIntersection(x, y);
+      if (inter) inter.classList.remove('black', 'white');
+    }
+    for (const [key, colorChar] of Object.entries(nextMap)) {
+      if (prevMap[key] === colorChar) continue;
+      const [x, y] = key.split(',').map(Number);
+      const inter = getIntersection(x, y);
+      if (!inter) continue;
+      inter.classList.remove('black', 'white');
+      inter.classList.add(colorChar === 'B' ? 'black' : 'white');
+    }
+  };
+
+  const playSequence = async (moves) => {
+    const sequenceBoard =
+      window.GoMiniBoardLogic.createBoardMatrix(boardDimension);
+    let prevMap = {};
+    const stepDelay = 420;
+    for (const move of moves) {
+      sequenceBoard[move.y][move.x] = move.color;
+      window.GoMiniBoardLogic.checkCaptures(
+        sequenceBoard,
+        move.x,
+        move.y,
+        move.color
+      );
+      const nextMap = window.GoMiniBoardLogic.buildStoneMap(sequenceBoard);
+      updateSequenceIntersections(prevMap, nextMap);
+      prevMap = nextMap;
+      await new Promise((resolve) => setTimeout(resolve, stepDelay));
+    }
+  };
+
+  if (currentMode === 'sequence') {
+    await playSequence(snapshot.moves);
+  }
+  renderFinalStones();
 
   tutorialController.attachToGame({
     board,
@@ -849,9 +969,47 @@ async function startGame(mode, retry = false) {
 
   function toggleStone(e) {
     const p = e.target;
-    if (p.classList.contains('white')) p.classList.replace('white', 'black');
-    else if (p.classList.contains('black')) p.classList.remove('black');
-    else p.classList.add('white');
+    const hadWhite = p.classList.contains('white');
+    const hadBlack = p.classList.contains('black');
+    if (hadWhite) {
+      p.classList.replace('white', 'black');
+    } else if (hadBlack) {
+      p.classList.remove('black');
+    } else {
+      p.classList.add('white');
+    }
+
+    if (window.activeGame?.mode === 'sequence') {
+      const newColor = p.classList.contains('white')
+        ? 'white'
+        : p.classList.contains('black')
+        ? 'black'
+        : null;
+      const xCoord = Number(p.dataset.x);
+      const yCoord = Number(p.dataset.y);
+      window.activeGame.sequenceHistory =
+        window.activeGame.sequenceHistory || [];
+      const existing = window.activeGame.sequenceHistory.find(
+        (entry) => entry.x === xCoord && entry.y === yCoord
+      );
+      if (existing) {
+        if (newColor) {
+          existing.color = newColor;
+        } else {
+          // Stone cleared, remove from history
+          window.activeGame.sequenceHistory =
+            window.activeGame.sequenceHistory.filter(
+              (entry) => entry !== existing
+            );
+        }
+      } else if (newColor) {
+        window.activeGame.sequenceHistory.push({
+          x: xCoord,
+          y: yCoord,
+          color: newColor,
+        });
+      }
+    }
   }
 
   function checkAnswers() {
@@ -861,8 +1019,10 @@ async function startGame(mode, retry = false) {
 
     document.querySelectorAll('.marker').forEach((m) => m.remove());
     let allCorrect = true;
+    let sequenceOrderIssues = 0;
 
     let missedCount = 0;
+    const orderMistakes = new Set();
     for (let y = 0; y <= config.size; y++) {
       for (let x = 0; x <= config.size; x++) {
         const inter = document.querySelector(
@@ -884,14 +1044,81 @@ async function startGame(mode, retry = false) {
         const marker = document.createElement('div');
         marker.classList.add('marker');
         marker.textContent = correct ? '✅' : '❌';
-        if (!correct) {
+        const coordKey = `${x},${y}`;
+        const isOrderMistake = window.activeGame?.orderMistakes?.has(coordKey);
+        if (!correct || isOrderMistake) {
           allCorrect = false;
           missedCount++;
+          if (isOrderMistake) missedCount--; // already counted elsewhere
+        }
+        if (isOrderMistake) {
+          marker.textContent = '❌';
+          marker.classList.add('marker--order');
         }
         inter.appendChild(marker);
       }
     }
 
+    if (currentMode === 'sequence') {
+      const history = window.activeGame?.sequenceHistory ?? [];
+      const expectedMoves = window.activeGame?.gameSnapshot?.moves ?? [];
+      const expectedCount = expectedMoves.length;
+      const alignCount = Math.min(history.length, expectedCount);
+      for (let i = 0; i < alignCount; i++) {
+        const expected = expectedMoves[i];
+        const actual = history[i];
+        const expectedColor = expected.color === 'B' ? 'black' : 'white';
+        if (
+          actual.x !== expected.x ||
+          actual.y !== expected.y ||
+          actual.color !== expectedColor
+        ) {
+          sequenceOrderIssues++;
+          orderMistakes.add(`${actual.x},${actual.y}`);
+          orderMistakes.add(`${expected.x},${expected.y}`);
+          break;
+        }
+      }
+      if (history.length < expectedCount) {
+        const next = expectedMoves[history.length];
+        if (next) {
+          orderMistakes.add(`${next.x},${next.y}`);
+        }
+        sequenceOrderIssues++;
+      } else if (history.length > expectedCount) {
+        const extra = history[expectedCount];
+        if (extra) {
+          orderMistakes.add(`${extra.x},${extra.y}`);
+        }
+        sequenceOrderIssues++;
+      }
+      if (sequenceOrderIssues > 0) {
+        allCorrect = false;
+      }
+      const formatExpected = (move) => {
+        if (!move) return '??';
+        const color = move.color === 'black' || move.color === 'B' ? 'B' : 'W';
+        return `${color}[${move.x},${move.y}]`;
+      };
+      const formatActual = (move) => {
+        if (!move) return '??';
+        const color =
+          move.color === 'black'
+            ? 'B'
+            : move.color === 'white'
+            ? 'W'
+            : move.color;
+        return `${color}[${move.x},${move.y}]`;
+      };
+      console.log(
+        'Sequence expected:',
+        expectedMoves.map(formatExpected).join(', ')
+      );
+      console.log('Sequence actual:', history.map(formatActual).join(', '));
+      window.activeGame.orderMistakes = orderMistakes;
+    } else {
+      window.activeGame.orderMistakes = new Set();
+    }
     toggleInteraction(false);
 
     let levelIncreased = false;
@@ -914,14 +1141,21 @@ async function startGame(mode, retry = false) {
       updateBonusAvailability();
     });
 
+    const finalBoardCorrect = missedCount === 0;
+
     if (levelIncreased) {
       msg.textContent = `Congrats! 🎉 Level ${window.progress[mode].level}!`;
       levelIncreased = false;
       launchConfetti();
       nextBtn.disabled = true;
       setTimeout(() => {
-        addScore();
-        nextBtn.disabled = false;
+        addScore({
+          reactionTime: window.activeGame?.reactionTime || 10000,
+          finalBoardCorrect,
+          sequenceOrderIssues,
+        }).finally(() => {
+          nextBtn.disabled = false;
+        });
       }, ANIM_DELAY);
     } else if (allCorrect) {
       const praise = [
@@ -946,8 +1180,13 @@ async function startGame(mode, retry = false) {
 
         if (!window.activeGame.isRetry) {
           setTimeout(() => {
-            addScore();
-            nextBtn.disabled = false;
+            addScore({
+              reactionTime: window.activeGame?.reactionTime || 10000,
+              finalBoardCorrect,
+              sequenceOrderIssues,
+            }).finally(() => {
+              nextBtn.disabled = false;
+            });
           }, ANIM_DELAY);
         } else {
           // still wait a bit so the animation feels natural
@@ -957,8 +1196,16 @@ async function startGame(mode, retry = false) {
         }
       }
     } else {
-      msg.textContent =
-        missedCount === 1 ? 'Missed just one stone!' : 'Missed some stones!';
+      if (
+        currentMode === 'sequence' &&
+        finalBoardCorrect &&
+        sequenceOrderIssues > 0
+      ) {
+        msg.textContent = 'Sequence order was off!';
+      } else {
+        msg.textContent =
+          missedCount === 1 ? 'Missed just one stone!' : 'Missed some stones!';
+      }
     }
 
     feedback.classList.add('show-msg');

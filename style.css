@@ -217,6 +217,9 @@ button.bonus-button.disabled .bonus-cost {
   pointer-events: none;
   opacity: 0.8;
 }
+.marker--order {
+  color: #e53935;
+}
 
 #mainGame {
   display: flex;
@@ -739,13 +742,12 @@ button:not(.bonus-button):disabled {
   left: 0;
   top: 0;
   pointer-events: none;
-  font-size: 1.6em;
-  font-weight: bold;
+  font-size: 1.3rem;
+  font-weight: 700;
   opacity: 0;
   z-index: 9999;
-}
-
-.score-float--reward {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: #4caf50;
 }
 
