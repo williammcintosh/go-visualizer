@@ -92,7 +92,7 @@ const gameState = {
 };
 gameState.score = gameState.score || 0;
 
-const base = { stones: 5, board: 5, time: 40 };
+const base = { stones: 5, board: 4, time: 40 };
 
 for (let i = 1; i <= 50; i++) {
   const boardSize = base.board + Math.floor((i - 1) / 5);
