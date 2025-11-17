@@ -40,7 +40,6 @@
         <div class="top">
           <img src="images/go-icon.png" alt="Go Viz icon" class="logo" />
           <h1>Go Viz</h1>
-        <p class="subtitle">Choose a mode</p>
         </div>
         <div class="btn-col">
           <div class="mode-grid">
@@ -49,7 +48,9 @@
                 <img src="images/position.png" alt="Position mode" />
               </div>
               <div class="mode-content">
-                <button class="diffBtn" data-mode="position">Position</button>
+                <button class="diffBtn" data-mode="position">
+                  Position Mode
+                </button>
                 <p class="mode-status" id="mode-status-position">Beginner</p>
               </div>
             </div>
@@ -58,7 +59,9 @@
                 <img src="images/sequence.png" alt="Sequence mode" />
               </div>
               <div class="mode-content">
-                <button class="diffBtn" data-mode="sequence">Sequence</button>
+                <button class="diffBtn" data-mode="sequence">
+                  Sequence Mode
+                </button>
                 <p class="mode-status" id="mode-status-sequence">Advanced</p>
               </div>
             </div>
@@ -75,7 +78,11 @@
               <span id="scoreValue">0</span>
             </p>
             <div id="modeIndicator">
-              <img id="modeIndicatorIcon" src="images/position_small.png" alt="mode icon" />
+              <img
+                id="modeIndicatorIcon"
+                src="images/position_small.png"
+                alt="mode icon"
+              />
               <span id="modeIndicatorText">Position Mode</span>
             </div>
             <p id="levelInfo">
@@ -139,7 +146,10 @@
 
       <!-- Tutorial overlay elements -->
       <div id="tutorialOverlay" class="tutorial-overlay tutorial-hidden"></div>
-      <div id="tutorialHighlight" class="tutorial-highlight tutorial-hidden"></div>
+      <div
+        id="tutorialHighlight"
+        class="tutorial-highlight tutorial-hidden"
+      ></div>
       <div id="tutorialTooltip" class="tutorial-tooltip tutorial-hidden">
         <p id="tutorialText"></p>
         <button id="tutorialOkBtn">Okay</button>

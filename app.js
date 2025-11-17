@@ -634,6 +634,7 @@ async function startGame(mode, retry = false) {
     persistProgress();
   }
   window.activeGame.sequenceHistory = [];
+  window.activeGame.nextHintIndex = 0;
 
   speedMultiplier = 1;
   lastTap = 0;
@@ -771,6 +772,53 @@ async function startGame(mode, retry = false) {
 
   addTimeBonus.addEventListener('click', addTimeHandler);
 
+  const HINT_ANIMATION_BASE = 1200;
+  const HINT_STAGGER = 420;
+  const HINT_STONE_KEYFRAMES = [
+    { opacity: 0 },
+    { opacity: 1, offset: 0.2 },
+    { opacity: 1, offset: 0.85 },
+    { opacity: 0 },
+  ];
+
+  const revealSequenceHints = (hintMoves) => {
+    const animations = [];
+    const hasSecond = hintMoves.length > 1;
+
+    hintMoves.forEach((move, index) => {
+      const inter = board.querySelector(
+        `.intersection[data-x="${move.x}"][data-y="${move.y}"]`
+      );
+      if (!inter) return;
+
+      const hint = document.createElement('div');
+      const colorClass = move.color === 'B' ? 'black' : 'white';
+      hint.classList.add('hint-stone', colorClass);
+      inter.appendChild(hint);
+
+      const duration =
+        index === 0 && hasSecond
+          ? HINT_ANIMATION_BASE + HINT_STAGGER
+          : HINT_ANIMATION_BASE;
+      const delay = index === 0 ? 0 : HINT_STAGGER;
+
+      const animation = hint.animate(HINT_STONE_KEYFRAMES, {
+        duration,
+        delay,
+        easing: 'ease-in-out',
+        fill: 'forwards',
+      });
+      const finish = animation.finished
+        .catch(() => {})
+        .finally(() => {
+          hint.remove();
+        });
+      animations.push(finish);
+    });
+
+    return animations.length ? Promise.allSettled(animations) : Promise.resolve([]);
+  };
+
   if (eyeGlassHandler) {
     eyeGlassBonus.removeEventListener('click', eyeGlassHandler);
   }
@@ -790,49 +838,17 @@ async function startGame(mode, retry = false) {
     deductPoints(BONUS_COST, eyeGlassBonus);
     eyeGlassBonus.classList.add('disabled'); // stop spam
 
-    // pick an unclicked correct stone
-    const unclicked = stones.filter((s) => {
-      const inter = document.querySelector(
-        `.intersection[data-x="${s.x}"][data-y="${s.y}"]`
-      );
+    const moves = window.activeGame?.gameSnapshot?.moves ?? [];
+    const nextIndex = window.activeGame?.nextHintIndex ?? 0;
+    const upcomingMoves = moves.slice(nextIndex, nextIndex + 2);
 
-      // figure out what the player currently has
-      const playerHasWhite = inter.classList.contains('white');
-      const playerHasBlack = inter.classList.contains('black');
-
-      // return if player has no stone or the wrong color
-      return (
-        (!playerHasWhite && !playerHasBlack) ||
-        (s.color === 'white' && !playerHasWhite) ||
-        (s.color === 'black' && !playerHasBlack)
-      );
-    });
-
-    if (unclicked.length === 0) {
+    if (upcomingMoves.length === 0) {
       updateBonusAvailability();
       return;
     }
 
-    const randomStone = unclicked[Math.floor(Math.random() * unclicked.length)];
-    const inter = document.querySelector(
-      `.intersection[data-x="${randomStone.x}"][data-y="${randomStone.y}"]`
-    );
-
-    // add a visual hint overlay
-    const hint = document.createElement('div');
-    hint.classList.add('hint-stone', randomStone.color);
-    inter.appendChild(hint);
-
-    // fade in/out animation
-    hint.animate(
-      [
-        { opacity: 0 },
-        { opacity: 1, offset: 0.2 },
-        { opacity: 1, offset: 0.8 },
-        { opacity: 0 },
-      ],
-      { duration: 1200, easing: 'ease-in-out' }
-    );
+    window.activeGame.nextHintIndex = nextIndex + upcomingMoves.length;
+    revealSequenceHints(upcomingMoves);
   };
 
   eyeGlassBonus.addEventListener('click', eyeGlassHandler);
@@ -957,6 +973,7 @@ async function startGame(mode, retry = false) {
       document.querySelectorAll('.marker').forEach((m) => m.remove());
     },
     getTimeRatio: () => timeLeft / config.time,
+    mode,
   });
 
   window.activeGame.timer = setInterval(() => {
@@ -1355,11 +1372,14 @@ function createTutorialController() {
       if (!active) return;
       setHold(true);
       if (!active) return;
-      await showStep(
-        context.board,
-        '[1/5] Memorize the locations and colors of these five stones.',
-        { placement: 'center', maxWidth: 360 }
-      );
+      const introText =
+        context.mode === 'sequence'
+          ? '[1/5] Memorize the locations and colors of these stones in order.'
+          : '[1/5] Memorize the locations and colors of these five stones.';
+      await showStep(context.board, introText, {
+        placement: 'center',
+        maxWidth: 360,
+      });
       if (!active) return;
       await showStep(
         context.timerContainer,
@@ -1403,7 +1423,7 @@ function createTutorialController() {
       context.clearBoard?.();
       await showStep(
         context.eyeGlassBonus,
-        '[5/5] If you need a hint, tap the eyeglass to reveal a random stone.',
+        '[5/5] Need a hint? Tap the eyeglass to preview the next two stones in the sequence.',
         { placement: 'top', centerGame: true, maxWidth: 360 }
       );
       if (!active) return;
