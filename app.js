@@ -221,12 +221,12 @@ function showScoreFloat(label, amount, duration = getAwardDuration(amount)) {
       {
         transform: `translate(${startX}px, ${startY}px)`,
         opacity: 1,
-        offset: 0.02,
+        offset: 0.0002,
       },
       {
         transform: `translate(${startX}px, ${startY - 20}px)`,
         opacity: 1,
-        offset: 0.98,
+        offset: 0.99,
       },
       {
         transform: `translate(${startX}px, ${startY - 25}px)`,
