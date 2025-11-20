@@ -21,7 +21,7 @@
         <div class="btn-col">
           <button id="continueBtn" style="display: none">Continue</button>
           <button id="startBtn">Start</button>
-          <button id="aboutBtn">About</button>
+          <button id="settingsBtn">Settings</button>
         </div>
       </div>
 
@@ -121,26 +121,54 @@
         </div>
       </div>
 
-      <div id="aboutModal" class="screen">
-        <div class="about-content">
-          <h2>About Go Viz</h2>
-          <p>
-            During the timer, examine the stones and remember their color and
-            location.
-          </p>
-          <p>When the timer ends, repeat the same pattern.</p>
-          <p>
-            Single press for a white stone, press again for a black stone, press
-            again to clear.
-          </p>
-          <p>Hit Check to see how you did.</p>
-          <p>
-            Double-tap anywhere on the screen to interrupt and speed up the
-            timer.
-          </p>
-          <p>Progress through all the levels.</p>
-          <p>Improve your memory and have fun!</p>
-          <button id="aboutHomeBtn" class="green-btn">Home</button>
+      <div id="settingsModal" class="screen">
+        <div class="settings-content">
+          <h2>Settings</h2>
+          <div class="setting-group">
+            <h3>Tap Mode</h3>
+            <label class="tap-mode-option">
+              <input
+                type="radio"
+                name="tapMode"
+                value="classic"
+                checked
+              />
+              <div class="option-copy">
+                <span class="option-title">Classic</span>
+                <span class="option-desc"
+                  >Tap cycles black → white → empty, matching the original
+                  behavior.</span
+                >
+              </div>
+            </label>
+            <label class="tap-mode-option">
+              <input type="radio" name="tapMode" value="toggle" />
+              <div class="option-copy">
+                <span class="option-title">Toggle stones</span>
+                <span class="option-desc"
+                  >Tap flips stone color, double-tap removes, and empty taps add
+                  the opposite color of your last stone.</span
+                >
+              </div>
+            </label>
+          </div>
+
+          <div class="settings-about">
+            <h3>About Go Viz</h3>
+            <p>
+              During the timer, examine the stones and remember their color and
+              location. When the timer ends, repeat the same pattern and tap
+              Check to see how you did.
+            </p>
+            <p>
+              Double-tap anywhere on the screen during memorization to speed up
+              the timer. Progress through all the levels, improve your memory,
+              and have fun!
+            </p>
+          </div>
+          <div class="settings-actions">
+            <button id="settingsHomeBtn" class="green-btn">Home</button>
+          </div>
         </div>
       </div>
 

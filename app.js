@@ -3,7 +3,7 @@ import { launchConfetti } from './anim.js';
 const intro = document.getElementById('intro');
 const difficulty = document.getElementById('difficulty');
 const mainGame = document.getElementById('mainGame');
-const aboutModal = document.getElementById('aboutModal');
+const settingsModal = document.getElementById('settingsModal');
 let currentMode = 'position';
 let isRefilling = false;
 let canUseEyeGlass = false;
@@ -11,12 +11,19 @@ const DOUBLE_TAP_WINDOW = 300;
 const SPEED_BOOST_MULTIPLIER = 20;
 const TUTORIAL_KEY = 'goVizTutorialDone';
 const TUTORIAL_SKIP_OFFSET = 36;
+const TAP_MODE_KEY = 'goVizTapMode';
+const TAP_MODES = {
+  CLASSIC: 'classic',
+  TOGGLE: 'toggle',
+};
 let speedMultiplier = 1;
 let lastTap = 0;
+let lastStoneTap = { time: 0, target: null };
 let addTimeHandler = null;
 let eyeGlassHandler = null;
 let checkButtonShowTimeout = null;
 const tutorialController = createTutorialController();
+let tapMode = loadTapMode();
 
 const DEFAULT_PROGRESS = {
   position: { level: 1, round: 1, started: false },
@@ -34,6 +41,40 @@ const MODE_ICONS = {
   position: 'images/position_small.png',
   sequence: 'images/sequence_small.png',
 };
+
+function loadTapMode() {
+  const saved = localStorage.getItem(TAP_MODE_KEY);
+  return saved === TAP_MODES.TOGGLE || saved === TAP_MODES.CLASSIC
+    ? saved
+    : TAP_MODES.CLASSIC;
+}
+
+function setTapMode(mode) {
+  const next =
+    mode === TAP_MODES.TOGGLE || mode === TAP_MODES.CLASSIC
+      ? mode
+      : TAP_MODES.CLASSIC;
+  tapMode = next;
+  localStorage.setItem(TAP_MODE_KEY, next);
+  syncTapModeInputs();
+  if (window.activeGame) {
+    window.activeGame.tapMode = next;
+    if (next === TAP_MODES.TOGGLE && !window.activeGame.lastPlacedColor) {
+      window.activeGame.lastPlacedColor = 'white';
+    }
+  }
+}
+
+function getTapMode() {
+  return tapMode;
+}
+
+function syncTapModeInputs() {
+  const inputs = document.querySelectorAll('input[name="tapMode"]');
+  inputs.forEach((input) => {
+    input.checked = input.value === tapMode;
+  });
+}
 
 function normalizeProgress(progress = {}) {
   return {
@@ -242,6 +283,9 @@ const startBtn = document.getElementById('startBtn');
 const confirmModal = document.getElementById('confirmModal');
 const confirmYes = document.getElementById('confirmYes');
 const confirmNo = document.getElementById('confirmNo');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsHomeBtn = document.getElementById('settingsHomeBtn');
+const tapModeInputs = document.querySelectorAll('input[name="tapMode"]');
 
 const tutorialHasRun = localStorage.getItem(TUTORIAL_KEY) === '1';
 tutorialController.configure({ shouldRun: !saved && !tutorialHasRun });
@@ -387,14 +431,20 @@ document.querySelectorAll('.diffBtn').forEach((b) => {
   };
 });
 
-// ---------- About Page Selection ----------
-document.getElementById('aboutBtn').addEventListener('click', () => {
-  showScreen(aboutModal, intro);
+// ---------- Settings ----------
+settingsBtn?.addEventListener('click', () => {
+  syncTapModeInputs();
+  showScreen(settingsModal, intro);
 });
 
-document.getElementById('aboutHomeBtn').addEventListener('click', () => {
-  showScreen(intro, aboutModal);
+settingsHomeBtn?.addEventListener('click', () => {
+  showScreen(intro, settingsModal);
 });
+
+tapModeInputs.forEach((input) => {
+  input.addEventListener('change', () => setTapMode(input.value));
+});
+syncTapModeInputs();
 
 // ---------- Game Selection Helpers ----------
 const lastGameByBoard = {};
@@ -629,6 +679,8 @@ async function startGame(mode, retry = false) {
 
   // Keeps track of whether or not there was a retry
   window.activeGame.isRetry = retry;
+  window.activeGame.tapMode = getTapMode();
+  window.activeGame.lastPlacedColor = 'white';
   if (!window.progress[mode].started) {
     window.progress[mode].started = true;
     persistProgress();
@@ -638,6 +690,7 @@ async function startGame(mode, retry = false) {
 
   speedMultiplier = 1;
   lastTap = 0;
+  lastStoneTap = { time: 0, target: null };
 
   const level = window.progress[mode].level;
   const levelConfig = gameState.levels[level - 1] || gameState.levels[0];
@@ -1062,12 +1115,42 @@ async function startGame(mode, retry = false) {
     const p = e.target;
     const hadWhite = p.classList.contains('white');
     const hadBlack = p.classList.contains('black');
-    if (hadWhite) {
-      p.classList.replace('white', 'black');
-    } else if (hadBlack) {
-      p.classList.remove('black');
+    const currentTapMode = window.activeGame?.tapMode ?? getTapMode();
+    const hadStone = hadWhite || hadBlack;
+
+    if (currentTapMode === TAP_MODES.TOGGLE) {
+      const now = Date.now();
+      const isDoubleTap =
+        hadStone &&
+        lastStoneTap.target === p &&
+        now - lastStoneTap.time < DOUBLE_TAP_WINDOW;
+      lastStoneTap = { time: now, target: p };
+
+      if (isDoubleTap) {
+        p.classList.remove('black', 'white');
+      } else if (!hadStone) {
+        const lastColor = window.activeGame?.lastPlacedColor ?? 'white';
+        const nextColor = lastColor === 'black' ? 'white' : 'black';
+        p.classList.add(nextColor);
+        if (window.activeGame) {
+          window.activeGame.lastPlacedColor = nextColor;
+        }
+      } else {
+        const nextColor = hadBlack ? 'white' : 'black';
+        p.classList.remove('black', 'white');
+        p.classList.add(nextColor);
+        if (window.activeGame) {
+          window.activeGame.lastPlacedColor = nextColor;
+        }
+      }
     } else {
-      p.classList.add('white');
+      if (hadWhite) {
+        p.classList.replace('white', 'black');
+      } else if (hadBlack) {
+        p.classList.remove('black');
+      } else {
+        p.classList.add('white');
+      }
     }
 
     if (window.activeGame?.mode === 'sequence') {

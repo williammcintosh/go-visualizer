@@ -514,48 +514,104 @@ button:not(.bonus-button):disabled {
   box-shadow: none;
 }
 
-/* ========= About Modal ========= */
-#aboutModal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-#aboutModal .modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  max-width: 400px;
-  text-align: center;
-  color: #222;
-}
-
 /* ========= Disabled Intersection ========= */
 .intersection[style*='pointer-events: none'] {
   cursor: not-allowed;
 }
 
-/* ========== About Page ==============*/
-#aboutModal {
+/* ========== Settings Page ==============*/
+#settingsModal {
+  position: fixed;
+  inset: 0;
   display: none;
-  text-align: center;
   padding: 20px;
+  background: var(--tan-bg);
+  overflow-y: auto;
+  z-index: 7;
 }
 
-#aboutModal.active {
-  display: block;
+#settingsModal.active {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
-.about-content {
-  max-width: 400px;
+.settings-content {
+  max-width: 450px;
   margin: 0 auto;
   background: #f8f1df;
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.settings-content h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.setting-group {
+  background: #fff7e3;
+  border: 1px solid #e2d5b8;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.setting-group h3 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+}
+
+.tap-mode-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.tap-mode-option:hover {
+  background: #f2e7c9;
+  border-color: #d5c7a7;
+}
+
+.tap-mode-option input {
+  margin-top: 4px;
+}
+
+.option-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.option-title {
+  font-weight: 700;
+}
+
+.option-desc {
+  color: #444;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.settings-about h3 {
+  margin-bottom: 6px;
+}
+
+.settings-about p {
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
 }
 
 .green-btn {
