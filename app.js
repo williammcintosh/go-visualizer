@@ -42,6 +42,40 @@ const MODE_ICONS = {
   sequence: 'images/sequence_small.png',
 };
 
+const timerUI = createTimerUI();
+
+function createTimerUI() {
+  const container = document.getElementById('timerContainer');
+  const bar = document.getElementById('timerBar');
+  const checkBtn = document.getElementById('checkBtn');
+
+  const setProgress = (ratio) => {
+    const clamped = Math.max(0, Math.min(1, ratio));
+    if (bar) {
+      bar.style.setProperty('--timer-progress', clamped);
+    }
+  };
+
+  const showTimer = () => {
+    if (!container) return;
+    container.classList.add('is-timing');
+    container.classList.remove('is-check');
+  };
+
+  const showCheck = () => {
+    if (!container) return;
+    container.classList.add('is-check');
+    container.classList.remove('is-timing');
+  };
+
+  const reset = () => {
+    setProgress(1);
+    showTimer();
+  };
+
+  return { container, bar, checkBtn, setProgress, showTimer, showCheck, reset };
+}
+
 function loadTapMode() {
   const saved = localStorage.getItem(TAP_MODE_KEY);
   return saved === TAP_MODES.TOGGLE || saved === TAP_MODES.CLASSIC
@@ -538,7 +572,6 @@ nextBtn.onclick = async () => {
     speedMultiplier = 1;
     clearInterval(window.activeGame.timer);
   }
-  document.getElementById('timerContainer').classList.remove('hidden');
   document.getElementById('board').replaceChildren();
   document.querySelectorAll('.marker').forEach((m) => m.remove());
   await startGame(window.activeGame.mode);
@@ -725,16 +758,14 @@ async function startGame(mode, retry = false) {
   document.querySelectorAll('.marker').forEach((m) => m.remove());
   document.documentElement.style.setProperty('--board-size', config.size);
 
-  const checkBtn = document.getElementById('checkBtn');
-  const timerContainer = document.getElementById('timerContainer');
+  const checkBtn = timerUI.checkBtn;
+  const timerContainer = timerUI.container;
 
   if (checkButtonShowTimeout) {
     clearTimeout(checkButtonShowTimeout);
     checkButtonShowTimeout = null;
   }
-  checkBtn.classList.remove('show');
-  timerContainer.classList.remove('hidden');
-  timerContainer.style.visibility = 'visible';
+  timerUI.reset();
 
   const addTimeBonus = document.getElementById('addTimeBonus');
   const eyeGlassBonus = document.getElementById('eyeGlassBonus');
@@ -766,63 +797,33 @@ async function startGame(mode, retry = false) {
     deductPoints(BONUS_COST, addTimeBonus);
     tutorialController.onAddTimeUsed();
 
-    const timerBar = document.getElementById('timerBar');
     const duration = 800;
     const holdTime = 600;
-    const startWidth = parseFloat(timerBar.style.width) || 0;
+    const startRatio = timeLeft / config.time;
     const startTime = performance.now();
 
-    const savedTimer = window.activeGame.timer;
-    clearInterval(window.activeGame.timer);
-    window.activeGame.timer = null;
+    if (window.activeGame?.timer) {
+      clearInterval(window.activeGame.timer);
+      window.activeGame.timer = null;
+    }
 
     const animateUp = (now) => {
       const progress = Math.min((now - startTime) / duration, 1);
-      const currentWidth = startWidth + (100 - startWidth) * progress;
-      timerBar.style.width = currentWidth + '%';
+      const currentRatio = startRatio + (1 - startRatio) * progress;
+      timerUI.setProgress(currentRatio);
 
       if (progress < 1) {
         requestAnimationFrame(animateUp);
       } else {
         setTimeout(() => {
           timeLeft = config.time;
-          window.activeGame.timer = savedTimer;
-          window.activeGame.timer = setInterval(() => {
-            timeLeft -= 0.1 * speedMultiplier;
-            timerBar.style.width = (timeLeft / config.time) * 100 + '%';
-            if (timeLeft <= 0 && window.activeGame.timer) {
-              clearInterval(window.activeGame.timer);
-              window.activeGame.timer = null;
-              speedMultiplier = 1;
-              window.activeGame.timerEndTime = Date.now();
-              clearStones();
-              toggleInteraction(true);
-              addTimeBonus.classList.add('disabled');
-              timerBar.style.width = '0%';
-              timerBar.addEventListener(
-                'transitionend',
-                () => {
-                  isRefilling = false;
-                  updateBonusAvailability();
-                },
-                { once: true }
-              );
-              if (checkButtonShowTimeout) {
-                clearTimeout(checkButtonShowTimeout);
-              }
-              checkButtonShowTimeout = setTimeout(() => {
-                timerContainer.classList.add('hidden');
-                checkBtn.classList.add('show');
-                canUseEyeGlass = true;
-                updateBonusAvailability();
-                checkButtonShowTimeout = null;
-              }, 100);
-            }
-          }, config.intervalSpeed);
-
-          isRefilling = false;
-          addTimeBonus.classList.remove('disabled'); // re-enable
-          updateBonusAvailability();
+          timerUI.setProgress(1);
+          startTimerInterval();
+          setTimeout(() => {
+            isRefilling = false;
+            addTimeBonus.classList.remove('disabled'); // re-enable
+            updateBonusAvailability();
+          }, 0);
         }, holdTime);
       }
     };
@@ -901,15 +902,31 @@ async function startGame(mode, retry = false) {
     eyeGlassBonus.classList.add('disabled'); // stop spam
 
     const moves = window.activeGame?.gameSnapshot?.moves ?? [];
-    const nextIndex = window.activeGame?.nextHintIndex ?? 0;
-    const upcomingMoves = moves.slice(nextIndex, nextIndex + 2);
+    const history = window.activeGame?.sequenceHistory ?? [];
+    const solvedPrefix = (() => {
+      let idx = 0;
+      while (idx < moves.length && idx < history.length) {
+        const expected = moves[idx];
+        const actual = history[idx];
+        const expectedColor = expected.color === 'B' ? 'black' : 'white';
+        if (
+          actual.x !== expected.x ||
+          actual.y !== expected.y ||
+          actual.color !== expectedColor
+        ) {
+          break;
+        }
+        idx++;
+      }
+      return idx;
+    })();
+    const upcomingMoves = moves.slice(solvedPrefix, solvedPrefix + 2);
 
     if (upcomingMoves.length === 0) {
       updateBonusAvailability();
       return;
     }
 
-    window.activeGame.nextHintIndex = nextIndex + upcomingMoves.length;
     revealSequenceHints(upcomingMoves);
   };
 
@@ -954,17 +971,63 @@ async function startGame(mode, retry = false) {
   drawBoard(config.size);
 
   // Countdown
-  const timerBar = document.getElementById('timerBar');
   let timeLeft = config.time;
   const adjustTimeBy = (delta) => {
     timeLeft = Math.min(config.time, Math.max(0, timeLeft + delta));
-    timerBar.style.width = (timeLeft / config.time) * 100 + '%';
+    timerUI.setProgress(timeLeft / config.time);
   };
   toggleInteraction(false);
   if (window.activeGame?.timer) {
     speedMultiplier = 1;
     clearInterval(window.activeGame.timer);
   }
+
+  const handleTimerFinished = () => {
+    if (window.activeGame?.timer) {
+      clearInterval(window.activeGame.timer);
+      window.activeGame.timer = null;
+    }
+    speedMultiplier = 1;
+    window.activeGame.timerEndTime = Date.now();
+    clearStones();
+    toggleInteraction(true);
+    addTimeBonus.classList.add('disabled');
+    updateBonusAvailability();
+    timerUI.setProgress(0);
+    if (checkButtonShowTimeout) {
+      clearTimeout(checkButtonShowTimeout);
+    }
+    checkButtonShowTimeout = setTimeout(() => {
+      timerUI.showCheck();
+      if (!isRefilling) {
+        canUseEyeGlass = true;
+        updateBonusAvailability();
+      }
+      checkButtonShowTimeout = null;
+    }, 100);
+  };
+
+  const runTimerTick = () => {
+    if (tutorialController.shouldHoldTimer()) {
+      return;
+    }
+    timeLeft -= 0.1 * speedMultiplier;
+    timerUI.setProgress(timeLeft / config.time);
+    tutorialController.onTimerTick(timeLeft / config.time);
+    if (timeLeft <= 0 && window.activeGame?.timer && !isRefilling) {
+      handleTimerFinished();
+    }
+  };
+
+  const startTimerInterval = () => {
+    if (window.activeGame?.timer) {
+      clearInterval(window.activeGame.timer);
+    }
+    timerUI.showTimer();
+    window.activeGame.timer = setInterval(runTimerTick, config.intervalSpeed);
+  };
+
+  timerUI.setProgress(1);
 
   const getIntersection = (x, y) =>
     board.querySelector(`.intersection[data-x="${x}"][data-y="${y}"]`);
@@ -1038,43 +1101,7 @@ async function startGame(mode, retry = false) {
     mode,
   });
 
-  window.activeGame.timer = setInterval(() => {
-    if (tutorialController.shouldHoldTimer()) {
-      return;
-    }
-    timeLeft -= 0.1 * speedMultiplier;
-    timerBar.style.width = (timeLeft / config.time) * 100 + '%';
-    tutorialController.onTimerTick(timeLeft / config.time);
-    if (timeLeft <= 0 && window.activeGame.timer && !isRefilling) {
-      // guard so it fires once
-      clearInterval(window.activeGame.timer);
-      window.activeGame.timer = null;
-      speedMultiplier = 1; // reset here
-
-      window.activeGame.timerEndTime = Date.now();
-
-      clearStones();
-      toggleInteraction(true);
-
-      // disable AddTime / enable EyeGlass
-      addTimeBonus.classList.add('disabled');
-      updateBonusAvailability();
-
-      timerBar.style.width = '0%';
-      if (checkButtonShowTimeout) {
-        clearTimeout(checkButtonShowTimeout);
-      }
-      checkButtonShowTimeout = setTimeout(() => {
-        timerContainer.classList.add('hidden');
-        checkBtn.classList.add('show');
-        if (!isRefilling) {
-          canUseEyeGlass = true;
-          updateBonusAvailability();
-        }
-        checkButtonShowTimeout = null;
-      }, 100);
-    }
-  }, config.intervalSpeed);
+  startTimerInterval();
   updateBonusAvailability();
 
   // ---------- Inner Helpers ----------
