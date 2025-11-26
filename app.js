@@ -392,6 +392,55 @@ function getSavedProgressState() {
   return JSON.parse(localStorage.getItem('goVizProgress') || 'null');
 }
 
+const PLAYER_PROGRESS_KEY = 'goVizPlayerProgress';
+
+function emptyPlayerProgress() {
+  return { position: {}, sequence: {} };
+}
+
+function loadPlayerProgress() {
+  try {
+    const stored = localStorage.getItem(PLAYER_PROGRESS_KEY);
+    const parsed = stored ? JSON.parse(stored) : null;
+    if (parsed && typeof parsed === 'object') {
+      return {
+        position: parsed.position || {},
+        sequence: parsed.sequence || {},
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to load player progress', err);
+  }
+  return emptyPlayerProgress();
+}
+
+function savePlayerProgress(progress) {
+  try {
+    localStorage.setItem(PLAYER_PROGRESS_KEY, JSON.stringify(progress));
+  } catch (err) {
+    console.warn('Failed to save player progress', err);
+  }
+}
+
+function getPlayerProgressIndex(mode, boardKey, total) {
+  const bucket = playerProgress?.[mode] || {};
+  const current = Number(bucket[boardKey]);
+  const parsed = Number.isFinite(current) ? current : 0;
+  return total > 0 ? ((parsed % total) + total) % total : 0;
+}
+
+function incrementPlayerProgress(mode, boardKey, total) {
+  if (total <= 0) return;
+  const bucket = playerProgress[mode] || {};
+  const currentIndex = getPlayerProgressIndex(mode, boardKey, total);
+  const nextIndex = (currentIndex + 1) % total;
+  bucket[boardKey] = nextIndex;
+  playerProgress[mode] = bucket;
+  savePlayerProgress(playerProgress);
+}
+
+let playerProgress = loadPlayerProgress();
+
 function updateModeStatuses() {
   Object.keys(MODE_TAGLINES).forEach((mode) => {
     const el = document.getElementById(`mode-status-${mode}`);
@@ -624,10 +673,12 @@ startBtn.addEventListener('click', () => {
     localStorage.removeItem('goVizProgress');
     localStorage.removeItem('skill_rating');
     localStorage.removeItem('skill_progress');
+    localStorage.removeItem(PLAYER_PROGRESS_KEY);
     difficultyState = saveDifficultyState({ rating: 0, level: 1 });
     renderSkillRating(difficultyState.rating);
     window.progress = normalizeProgress();
     gameState.currentRound = 1;
+    playerProgress = emptyPlayerProgress();
 
     // ADD THIS
     gameState.score = 0;
@@ -644,10 +695,12 @@ confirmYes.addEventListener('click', () => {
   localStorage.removeItem('goVizProgress');
   localStorage.removeItem('skill_rating');
   localStorage.removeItem('skill_progress');
+  localStorage.removeItem(PLAYER_PROGRESS_KEY);
   difficultyState = saveDifficultyState({ rating: 0, level: 1 });
   renderSkillRating(difficultyState.rating);
   window.progress = normalizeProgress();
   gameState.currentRound = 1;
+  playerProgress = emptyPlayerProgress();
 
   // ADD THIS
   gameState.score = 0;
@@ -723,27 +776,40 @@ function determineBoardKey(library, targetSize) {
   return `${sizeToUse}x${sizeToUse}`;
 }
 
-async function selectGameForLevel(targetSize) {
+async function selectGameForLevel(targetSize, stoneCount, mode) {
   const library = await window.GoMiniBoardLogic.loadMiniBoards();
   const boardKey = determineBoardKey(library, targetSize);
   if (!boardKey || !Array.isArray(library[boardKey])) {
     throw new Error(`No games available for ${targetSize}x${targetSize}`);
   }
   const games = library[boardKey];
-  let selected = games[0];
-  if (games.length > 1) {
-    let attempts = 0;
-    do {
-      selected = games[Math.floor(Math.random() * games.length)];
-      attempts++;
-    } while (
-      selected &&
-      selected.game_id === lastGameByBoard[boardKey] &&
-      attempts < 10
+  const targetCount = Number.isFinite(Number(stoneCount))
+    ? Number(stoneCount)
+    : null;
+  const matchingGames =
+    targetCount === null
+      ? games
+      : games.filter((game) => Number(game.num_moves) === targetCount);
+  const pool = matchingGames.length ? matchingGames : games;
+  if (!pool.length) {
+    throw new Error(
+      `No games available for ${boardKey} with ${targetCount ?? 'any'} stones`
     );
   }
+  const safeMode = mode === 'sequence' ? 'sequence' : 'position';
+  const index = getPlayerProgressIndex(safeMode, boardKey, pool.length);
+  const selected = pool[index];
   lastGameByBoard[boardKey] = selected?.game_id;
-  return { boardKey, game: selected };
+  return {
+    boardKey,
+    game: selected,
+    challengeMeta: {
+      index,
+      poolSize: pool.length,
+      stoneCount: targetCount,
+      mode: safeMode,
+    },
+  };
 }
 
 // ---------- Button Listeners ----------
@@ -1377,13 +1443,31 @@ async function startGame(mode, retry = false) {
   }
 
   if (!snapshot) {
-    const selection = await selectGameForLevel(boardDimension);
+    const selection = await selectGameForLevel(
+      boardDimension,
+      config.stoneCount,
+      currentMode
+    );
     boardKey = selection.boardKey;
     selectedGame = selection.game;
+    const stoneTarget = Number.isFinite(Number(selectedGame?.num_moves))
+      ? Number(selectedGame.num_moves)
+      : config.stoneCount;
+    window.activeGame.puzzleConfig = {
+      stoneCount: stoneTarget,
+      boardSize: boardDimension,
+    };
+    window.activeGame.challengeIndex = selection.challengeMeta?.index ?? 0;
+    window.activeGame.challengePoolSize =
+      selection.challengeMeta?.poolSize ?? 0;
+    window.activeGame.challengeStoneCount =
+      selection.challengeMeta?.stoneCount ?? stoneTarget;
+    window.activeGame.challengeMode =
+      selection.challengeMeta?.mode ?? currentMode;
     snapshot = await window.GoMiniBoardLogic.getGameSnapshot({
       size: boardKey,
       gameId: selectedGame.game_id,
-      stoneTarget: config.stoneCount,
+      stoneTarget,
     });
     window.activeGame.selectedGame = selectedGame;
     window.activeGame.boardKey = boardKey;
@@ -1885,6 +1969,22 @@ async function startGame(mode, retry = false) {
     if (derivedSkipped && window.activeGame?.challengeCompleted) {
       console.warn('[SkillRating] skip and completed both true; forcing skip');
       window.activeGame.challengeCompleted = false;
+    }
+
+    if (window.activeGame?.challengeCompleted) {
+      const boardKey = window.activeGame.boardKey;
+      const stoneCount =
+        window.activeGame.challengeStoneCount ??
+        window.activeGame?.puzzleConfig?.stoneCount ??
+        config.stoneCount;
+      const total = window.activeGame.challengePoolSize ?? 0;
+      const modeKey =
+        window.activeGame.challengeMode === 'sequence'
+          ? 'sequence'
+          : 'position';
+      if (boardKey) {
+        incrementPlayerProgress(modeKey, boardKey, total);
+      }
     }
 
     recordDifficultyOutcome(Boolean(window.activeGame?.timedOut));

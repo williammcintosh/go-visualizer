@@ -15,7 +15,7 @@
  */
 
 const GoMiniBoardLogic = (() => {
-  const DATA_FILE = './games/OGS_mini_boards.json';
+  const DATA_FILE = './games/filtered_capture_free.json';
   const SIZE_PATTERN = /^(\d+)x\d+$/;
 
   let cachedData = null;
