@@ -393,8 +393,13 @@ function getSavedProgressState() {
 }
 
 const PLAYER_PROGRESS_KEY = 'goVizPlayerProgress';
+const CHALLENGE_ATTEMPTS_KEY = 'goVizChallengeAttempts';
 
 function emptyPlayerProgress() {
+  return { position: {}, sequence: {} };
+}
+
+function emptyChallengeAttempts() {
   return { position: {}, sequence: {} };
 }
 
@@ -422,6 +427,30 @@ function savePlayerProgress(progress) {
   }
 }
 
+function loadChallengeAttempts() {
+  try {
+    const stored = localStorage.getItem(CHALLENGE_ATTEMPTS_KEY);
+    const parsed = stored ? JSON.parse(stored) : null;
+    if (parsed && typeof parsed === 'object') {
+      return {
+        position: parsed.position || {},
+        sequence: parsed.sequence || {},
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to load challenge attempts', err);
+  }
+  return emptyChallengeAttempts();
+}
+
+function saveChallengeAttempts(attempts) {
+  try {
+    localStorage.setItem(CHALLENGE_ATTEMPTS_KEY, JSON.stringify(attempts));
+  } catch (err) {
+    console.warn('Failed to save challenge attempts', err);
+  }
+}
+
 function getPlayerProgressIndex(mode, boardKey, total) {
   const bucket = playerProgress?.[mode] || {};
   const current = Number(bucket[boardKey]);
@@ -440,6 +469,36 @@ function incrementPlayerProgress(mode, boardKey, total) {
 }
 
 let playerProgress = loadPlayerProgress();
+let challengeAttempts = loadChallengeAttempts();
+
+function getChallengeAttemptKey(gameId, index) {
+  if (Number.isFinite(Number(gameId))) return `id:${gameId}`;
+  if (Number.isFinite(Number(index))) return `idx:${index}`;
+  return 'unknown';
+}
+
+function recordChallengeAttempt(mode, boardKey, { gameId, index }) {
+  const safeMode = mode === 'sequence' ? 'sequence' : 'position';
+  const bucket = challengeAttempts[safeMode] || {};
+  const perBoard = bucket[boardKey] || {};
+  const key = getChallengeAttemptKey(gameId, index);
+  const current = Number(perBoard[key]);
+  const next = Number.isFinite(current) ? current + 1 : 1;
+  perBoard[key] = next;
+  bucket[boardKey] = perBoard;
+  challengeAttempts[safeMode] = bucket;
+  saveChallengeAttempts(challengeAttempts);
+  return next;
+}
+
+function getChallengeAttemptCount(mode, boardKey, { gameId, index }) {
+  const safeMode = mode === 'sequence' ? 'sequence' : 'position';
+  const bucket = challengeAttempts?.[safeMode] || {};
+  const perBoard = bucket?.[boardKey] || {};
+  const key = getChallengeAttemptKey(gameId, index);
+  const current = Number(perBoard[key]);
+  return Number.isFinite(current) ? current : 0;
+}
 
 function updateModeStatuses() {
   Object.keys(MODE_TAGLINES).forEach((mode) => {
@@ -674,11 +733,13 @@ startBtn.addEventListener('click', () => {
     localStorage.removeItem('skill_rating');
     localStorage.removeItem('skill_progress');
     localStorage.removeItem(PLAYER_PROGRESS_KEY);
+    localStorage.removeItem(CHALLENGE_ATTEMPTS_KEY);
     difficultyState = saveDifficultyState({ rating: 0, level: 1 });
     renderSkillRating(difficultyState.rating);
     window.progress = normalizeProgress();
     gameState.currentRound = 1;
     playerProgress = emptyPlayerProgress();
+    challengeAttempts = emptyChallengeAttempts();
 
     // ADD THIS
     gameState.score = 0;
@@ -696,11 +757,13 @@ confirmYes.addEventListener('click', () => {
   localStorage.removeItem('skill_rating');
   localStorage.removeItem('skill_progress');
   localStorage.removeItem(PLAYER_PROGRESS_KEY);
+  localStorage.removeItem(CHALLENGE_ATTEMPTS_KEY);
   difficultyState = saveDifficultyState({ rating: 0, level: 1 });
   renderSkillRating(difficultyState.rating);
   window.progress = normalizeProgress();
   gameState.currentRound = 1;
   playerProgress = emptyPlayerProgress();
+  challengeAttempts = emptyChallengeAttempts();
 
   // ADD THIS
   gameState.score = 0;
@@ -1152,6 +1215,22 @@ async function startGame(mode, retry = false) {
       speedBonusUsed: Boolean(window.activeGame?.speedBonusUsed),
       currentRating: difficultyState.rating,
     });
+    const attemptsForChallenge = Number(
+      window.activeGame?.challengeAttempts || 0
+    );
+    if (attemptsForChallenge > 1 && ratingResult.delta > 1) {
+      const cappedDelta = 1;
+      const currentRatingValue =
+        Number.isFinite(Number(ratingResult.currentRating))
+          ? Number(ratingResult.currentRating)
+          : Number(difficultyState.rating) || 0;
+      const nextRating = Math.max(
+        0,
+        Math.min(2500, currentRatingValue + cappedDelta)
+      );
+      ratingResult.delta = cappedDelta;
+      ratingResult.nextRating = nextRating;
+    }
     ratingResult.rating = ratingResult.nextRating;
     difficultyState = saveDifficultyState({
       rating: ratingResult.nextRating,
@@ -1473,6 +1552,20 @@ async function startGame(mode, retry = false) {
     window.activeGame.boardKey = boardKey;
     window.activeGame.gameSnapshot = snapshot;
   }
+  if (!selectedGame && window.activeGame?.selectedGame) {
+    selectedGame = window.activeGame.selectedGame;
+  }
+  if (!boardKey && window.activeGame?.boardKey) {
+    boardKey = window.activeGame.boardKey;
+  }
+  window.activeGame.challengeAttempts = recordChallengeAttempt(
+    window.activeGame.challengeMode || currentMode,
+    window.activeGame.boardKey || boardKey,
+    {
+      gameId: window.activeGame?.selectedGame?.game_id ?? selectedGame?.game_id,
+      index: window.activeGame.challengeIndex ?? 0,
+    }
+  );
 
   const stones = Object.entries(snapshot.stoneMap).map(
     ([coords, stoneColor]) => {
