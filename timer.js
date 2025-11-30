@@ -1,0 +1,225 @@
+let deps = {
+  getActiveGame: () => window.activeGame,
+  getSpeedMultiplier: () => 1,
+  setSpeedMultiplier: () => {},
+  getLastTap: () => 0,
+  setLastTap: () => {},
+  getIsRefilling: () => false,
+  tutorialController: null,
+  doubleTapWindow: 300,
+  speedBoostMultiplier: 20,
+  getConfig: () => ({ time: 0, intervalSpeed: 1000 }),
+  getTimeLeft: () => 0,
+  setTimeLeft: () => {},
+  timerUI: null,
+  handleTimerFinished: () => {},
+};
+
+function setupTimer(overrides = {}) {
+  deps = { ...deps, ...overrides };
+}
+
+function createTimerUI() {
+  const container = document.getElementById('timerContainer');
+  const bar = document.getElementById('timerBar');
+  const checkBtn = document.getElementById('checkBtn');
+
+  const setProgress = (ratio) => {
+    const clamped = Math.max(0, Math.min(1, ratio));
+    if (bar) {
+      bar.style.setProperty('--timer-progress', clamped);
+    }
+  };
+
+  const showTimer = () => {
+    if (!container) return;
+    container.classList.add('is-timing');
+    container.classList.remove('is-check');
+  };
+
+  const showCheck = () => {
+    if (!container) return;
+    container.classList.add('is-check');
+    container.classList.remove('is-timing');
+  };
+
+  const reset = () => {
+    setProgress(1);
+    showTimer();
+  };
+
+  return { container, bar, checkBtn, setProgress, showTimer, showCheck, reset };
+}
+
+function freezeBarState(reason, timeLeft, totalTime) {
+  const activeGame = deps.getActiveGame();
+  if (!activeGame || activeGame.initialRemainingRatio !== null) {
+    return;
+  }
+  if (reason === 'timerCrossZero') return;
+  const safeTotal =
+    Number(totalTime) ||
+    Number(activeGame?.totalTime) ||
+    Number(activeGame?.puzzleConfig?.time) ||
+    1;
+  const ratioRaw = safeTotal ? timeLeft / safeTotal : 0;
+  const ratio = Math.max(0, Math.min(1, ratioRaw));
+  console.log('[RATIO CALC]', {
+    timeLeft,
+    totalTime: safeTotal,
+    computedRatio: ratio,
+    reason,
+  });
+  const now = Date.now();
+  activeGame.initialRemainingRatio = ratio;
+  activeGame.barRatioAtHide = ratio;
+  activeGame.timeLeftAtHide = timeLeft;
+  activeGame.startTimestampSolve = now;
+  activeGame.timeLeftAtSolveStart = timeLeft;
+  activeGame.freezeReason = reason;
+  activeGame.speedBonusUsed = Boolean(deps.getSpeedMultiplier() > 1);
+}
+
+function freezeBarStateNextFrame(reason, timeLeftRef, totalTime) {
+  const activeGame = deps.getActiveGame();
+  if (!activeGame || activeGame.initialRemainingRatio !== null) {
+    return;
+  }
+  requestAnimationFrame(() => {
+    const latestGame = deps.getActiveGame();
+    if (!latestGame || latestGame.initialRemainingRatio !== null) {
+      return;
+    }
+    const currentTimeLeft =
+      latestGame.timeLeft ??
+      timeLeftRef ??
+      latestGame?.puzzleConfig?.time ??
+      0;
+    const total =
+      Number(totalTime) ||
+      Number(latestGame?.totalTime) ||
+      Number(latestGame?.puzzleConfig?.time) ||
+      1;
+    freezeBarState(reason, currentTimeLeft, total);
+  });
+}
+
+function showTimerToast(text) {
+  const host = deps.timerUI?.container || document.body;
+  if (!host) return;
+  const toast = document.createElement('div');
+  toast.className = 'timer-toast';
+  toast.textContent = text;
+  host.appendChild(toast);
+  toast
+    .animate(
+      [
+        { opacity: 0, transform: 'translate(-50%, 6px)' },
+        { opacity: 1, transform: 'translate(-50%, 0)' },
+        { opacity: 0, transform: 'translate(-50%, -6px)' },
+      ],
+      { duration: 1200, easing: 'ease-out', fill: 'forwards' }
+    )
+    .finished.finally(() => toast.remove());
+}
+
+function handleDoubleTap(event) {
+  const activeGame = deps.getActiveGame();
+  if (
+    !activeGame?.timer ||
+    deps.getIsRefilling() ||
+    deps.tutorialController?.shouldIgnoreDoubleTap?.()
+  ) {
+    return;
+  }
+
+  if (event.type === 'dblclick') {
+    deps.setSpeedMultiplier(deps.speedBoostMultiplier);
+    if (activeGame) activeGame.speedBoostUsed = true;
+    freezeBarStateNextFrame(
+      'postDoubleTapFrame',
+      activeGame?.timeLeft ?? activeGame?.puzzleConfig?.time ?? 0,
+      activeGame?.totalTime || activeGame?.puzzleConfig?.time || 1
+    );
+    return;
+  }
+
+  const now = Date.now();
+  const lastTap = deps.getLastTap();
+  const isDoubleTap = now - lastTap < deps.doubleTapWindow;
+  if (isDoubleTap) {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+    deps.setSpeedMultiplier(deps.speedBoostMultiplier);
+    if (activeGame) activeGame.speedBoostUsed = true;
+    freezeBarStateNextFrame(
+      'postDoubleTapFrame',
+      activeGame?.timeLeft ?? activeGame?.puzzleConfig?.time ?? 0,
+      activeGame?.totalTime || activeGame?.puzzleConfig?.time || 1
+    );
+  }
+  deps.setLastTap(now);
+}
+
+function preventPinchZoom(event) {
+  if (event.touches && event.touches.length > 1 && event.cancelable) {
+    event.preventDefault();
+  }
+}
+
+function initDoubleTapListeners() {
+  document.body.addEventListener('touchend', handleDoubleTap, {
+    passive: false,
+  });
+  document.body.addEventListener('dblclick', handleDoubleTap);
+  document.body.addEventListener('touchstart', preventPinchZoom, {
+    passive: false,
+  });
+}
+
+function runTimerTick() {
+  if (deps.tutorialController?.shouldHoldTimer?.()) {
+    return;
+  }
+  let timeLeft = deps.getTimeLeft();
+  timeLeft = Math.max(0, timeLeft - 0.1 * deps.getSpeedMultiplier());
+  const config = deps.getConfig();
+  const timerUI = deps.timerUI;
+  const activeGame = deps.getActiveGame();
+  const ratio = config.time ? timeLeft / config.time : 0;
+  timerUI?.setProgress?.(ratio);
+  if (activeGame) {
+    const clamped = Math.max(0, Math.min(1, ratio));
+    activeGame.lastTimerRatio = clamped;
+    activeGame.timeLeft = timeLeft;
+  }
+  deps.tutorialController?.onTimerTick?.(ratio);
+  deps.setTimeLeft(timeLeft);
+  if (timeLeft <= 0 && activeGame?.timer && !deps.getIsRefilling()) {
+    deps.handleTimerFinished();
+  }
+}
+
+function startTimerInterval() {
+  const activeGame = deps.getActiveGame();
+  if (activeGame?.timer) {
+    clearInterval(activeGame.timer);
+  }
+  deps.timerUI?.showTimer?.();
+  const config = deps.getConfig();
+  activeGame.timer = setInterval(runTimerTick, config.intervalSpeed);
+}
+
+export {
+  createTimerUI,
+  freezeBarState,
+  freezeBarStateNextFrame,
+  showTimerToast,
+  handleDoubleTap,
+  preventPinchZoom,
+  initDoubleTapListeners,
+  startTimerInterval,
+  runTimerTick,
+  setupTimer,
+};

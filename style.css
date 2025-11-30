@@ -314,10 +314,8 @@ button.bonus-button.disabled .bonus-cost {
 
 #feedback.show {
   display: flex;
-}
-
-#feedback.show {
-  display: flex;
+  flex-direction: column;
+  align-items: center;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -331,8 +329,10 @@ button.bonus-button.disabled .bonus-cost {
 
 #feedback button {
   display: block;
-  width: 100%;
-  margin: 0.5rem 0;
+  width: min(50vw, 400px);
+  max-width: 400px;
+  box-sizing: border-box;
+  margin: 0.5rem auto;
   font-size: 1.2rem;
   padding: 12px 0;
   border-radius: 10px;
@@ -1122,20 +1122,22 @@ button:not(.bonus-button):not(#checkBtn):disabled {
   #nextBtn {
     width: 100%;
     margin: 0.5rem 0;
+    display: block;
   }
 
-  /* Create a two-column row for Retry + Home */
+  /* Feedback footer row (now single home button) */
   .feedback-bottom-row {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: center;
     width: 100%;
-    gap: 0.5rem;
   }
 
-  /* Both side buttons equal width */
   .feedback-bottom-row button {
-    flex: 1;
-    margin: 0;
+    width: min(50vw, 400px);
+    max-width: 400px;
+    margin: 0.5rem auto 0;
+    display: block;
   }
 
   #gameHeader {

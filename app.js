@@ -11,6 +11,18 @@ import {
   MIN_STONES,
   computeRatingResult,
 } from './difficulty.js';
+import {
+  createTimerUI,
+  freezeBarState,
+  freezeBarStateNextFrame,
+  showTimerToast,
+  handleDoubleTap,
+  preventPinchZoom,
+  initDoubleTapListeners,
+  startTimerInterval,
+  runTimerTick,
+  setupTimer,
+} from './timer.js';
 
 const intro = document.getElementById('intro');
 const difficulty = document.getElementById('difficulty');
@@ -55,6 +67,26 @@ const MODE_ICONS = {
 };
 
 const timerUI = createTimerUI();
+setupTimer({
+  getActiveGame: () => window.activeGame,
+  getSpeedMultiplier: () => speedMultiplier,
+  setSpeedMultiplier: (v) => {
+    speedMultiplier = v;
+  },
+  getLastTap: () => lastTap,
+  setLastTap: (v) => {
+    lastTap = v;
+  },
+  getIsRefilling: () => isRefilling,
+  tutorialController,
+  doubleTapWindow: DOUBLE_TAP_WINDOW,
+  speedBoostMultiplier: SPEED_BOOST_MULTIPLIER,
+  getConfig: () => ({ time: 0, intervalSpeed: 1000 }),
+  getTimeLeft: () => 0,
+  setTimeLeft: () => {},
+  timerUI,
+  handleTimerFinished: () => {},
+});
 let difficultyState = saveDifficultyState(loadDifficultyState());
 let nextPuzzleSuggestion = null;
 const SKILL_DEBUG_KEY = 'skill_rating_debug';
@@ -107,38 +139,6 @@ const skillRatingEl = (() => {
 })();
 renderSkillRating(difficultyState.rating);
 
-function createTimerUI() {
-  const container = document.getElementById('timerContainer');
-  const bar = document.getElementById('timerBar');
-  const checkBtn = document.getElementById('checkBtn');
-
-  const setProgress = (ratio) => {
-    const clamped = Math.max(0, Math.min(1, ratio));
-    if (bar) {
-      bar.style.setProperty('--timer-progress', clamped);
-    }
-  };
-
-  const showTimer = () => {
-    if (!container) return;
-    container.classList.add('is-timing');
-    container.classList.remove('is-check');
-  };
-
-  const showCheck = () => {
-    if (!container) return;
-    container.classList.add('is-check');
-    container.classList.remove('is-timing');
-  };
-
-  const reset = () => {
-    setProgress(1);
-    showTimer();
-  };
-
-  return { container, bar, checkBtn, setProgress, showTimer, showCheck, reset };
-}
-
 function renderSkillRating(rating) {
   if (!skillRatingEl) return;
   const incoming = Number(rating);
@@ -153,56 +153,6 @@ function renderSkillRating(rating) {
 
 function logSkillRatingDebug(data) {
   console.log('[SkillRating]', JSON.stringify(data, null, 2));
-}
-
-function freezeBarState(reason, timeLeft, totalTime) {
-  if (!window.activeGame || window.activeGame.initialRemainingRatio !== null) {
-    return;
-  }
-  if (reason === 'timerCrossZero') return;
-  const safeTotal =
-    Number(totalTime) ||
-    Number(window.activeGame?.totalTime) ||
-    Number(window.activeGame?.puzzleConfig?.time) ||
-    1;
-  const ratioRaw = safeTotal ? timeLeft / safeTotal : 0;
-  const ratio = Math.max(0, Math.min(1, ratioRaw));
-  console.log('[RATIO CALC]', {
-    timeLeft,
-    totalTime: safeTotal,
-    computedRatio: ratio,
-    reason,
-  });
-  const now = Date.now();
-  window.activeGame.initialRemainingRatio = ratio;
-  window.activeGame.barRatioAtHide = ratio;
-  window.activeGame.timeLeftAtHide = timeLeft;
-  window.activeGame.startTimestampSolve = now;
-  window.activeGame.timeLeftAtSolveStart = timeLeft;
-  window.activeGame.freezeReason = reason;
-  window.activeGame.speedBonusUsed = Boolean(speedMultiplier > 1);
-}
-
-function freezeBarStateNextFrame(reason, timeLeftRef, totalTime) {
-  if (!window.activeGame || window.activeGame.initialRemainingRatio !== null) {
-    return;
-  }
-  requestAnimationFrame(() => {
-    if (!window.activeGame || window.activeGame.initialRemainingRatio !== null) {
-      return;
-    }
-    const currentTimeLeft =
-      window.activeGame.timeLeft ??
-      timeLeftRef ??
-      window.activeGame?.puzzleConfig?.time ??
-      0;
-    const total =
-      Number(totalTime) ||
-      Number(window.activeGame?.totalTime) ||
-      Number(window.activeGame?.puzzleConfig?.time) ||
-      1;
-    freezeBarState(reason, currentTimeLeft, total);
-  });
 }
 
 function showRatingGain(amount) {
@@ -252,23 +202,6 @@ function writeSkillDebug(snapshot, level) {
   } catch (err) {
     console.warn('Failed to write skill debug info', err);
   }
-}
-
-function showTimerToast(text) {
-  const host = timerUI.container || document.body;
-  if (!host) return;
-  const toast = document.createElement('div');
-  toast.className = 'timer-toast';
-  toast.textContent = text;
-  host.appendChild(toast);
-  toast.animate(
-    [
-      { opacity: 0, transform: 'translate(-50%, 6px)' },
-      { opacity: 1, transform: 'translate(-50%, 0)' },
-      { opacity: 0, transform: 'translate(-50%, -6px)' },
-    ],
-    { duration: 1200, easing: 'ease-out', fill: 'forwards' }
-  ).finished.finally(() => toast.remove());
 }
 
 function loadTapMode() {
@@ -644,59 +577,6 @@ function refreshHomeButtons() {
   startBtn.textContent = hasSave ? 'Restart' : 'Start';
 }
 
-function handleDoubleTap(event) {
-  if (
-    !window.activeGame?.timer ||
-    isRefilling ||
-    tutorialController.shouldIgnoreDoubleTap()
-  ) {
-    return;
-  }
-
-  if (event.type === 'dblclick') {
-    speedMultiplier = SPEED_BOOST_MULTIPLIER;
-    if (window.activeGame) window.activeGame.speedBoostUsed = true;
-    freezeBarStateNextFrame(
-      'postDoubleTapFrame',
-      window.activeGame?.timeLeft ?? window.activeGame?.puzzleConfig?.time ?? 0,
-      window.activeGame?.totalTime || window.activeGame?.puzzleConfig?.time || 1
-    );
-    return;
-  }
-
-  const now = Date.now();
-  const isDoubleTap = now - lastTap < DOUBLE_TAP_WINDOW;
-  if (isDoubleTap) {
-    if (event.cancelable) {
-      event.preventDefault();
-    }
-    speedMultiplier = SPEED_BOOST_MULTIPLIER;
-    if (window.activeGame) window.activeGame.speedBoostUsed = true;
-    freezeBarStateNextFrame(
-      'postDoubleTapFrame',
-      window.activeGame?.timeLeft ?? window.activeGame?.puzzleConfig?.time ?? 0,
-      window.activeGame?.totalTime || window.activeGame?.puzzleConfig?.time || 1
-    );
-  }
-  lastTap = now;
-}
-
-function preventPinchZoom(event) {
-  if (event.touches && event.touches.length > 1 && event.cancelable) {
-    event.preventDefault();
-  }
-}
-
-function initDoubleTapListeners() {
-  document.body.addEventListener('touchend', handleDoubleTap, {
-    passive: false,
-  });
-  document.body.addEventListener('dblclick', handleDoubleTap);
-  document.body.addEventListener('touchstart', preventPinchZoom, {
-    passive: false,
-  });
-}
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initDoubleTapListeners);
 } else {
@@ -877,23 +757,8 @@ async function selectGameForLevel(targetSize, stoneCount, mode) {
 
 // ---------- Button Listeners ----------
 const nextBtn = document.getElementById('nextBtn');
-const retryBtn = document.getElementById('retryBtn');
 const homeBtn2 = document.getElementById('homeBtn2');
 const levelOkBtn = document.getElementById('levelOkBtn');
-
-retryBtn.addEventListener('click', async () => {
-  const feedback = document.getElementById('feedback');
-  feedback.style.display = 'none';
-  feedback.classList.remove('show');
-  updateBonusAvailability();
-  if (window.activeGame?.timer) {
-    speedMultiplier = 1;
-    clearInterval(window.activeGame.timer);
-  }
-  document.getElementById('board').replaceChildren();
-  document.querySelectorAll('.marker').forEach((m) => m.remove());
-  startGame(window.activeGame.mode, true);
-});
 
 homeBtn2.addEventListener('click', () => {
   const feedback = document.getElementById('feedback');
@@ -1068,12 +933,10 @@ function updateBonusAvailability() {
 }
 
 // ---------- Main Game ----------
-async function startGame(mode, retry = false) {
-  if (!retry || !window.activeGame) window.activeGame = { mode };
+async function startGame(mode) {
+  if (!window.activeGame) window.activeGame = { mode };
   else window.activeGame.mode = mode;
 
-  // Keeps track of whether or not there was a retry
-  window.activeGame.isRetry = retry;
   window.activeGame.tapMode = getTapMode();
   window.activeGame.lastPlacedColor = 'white';
   if (!window.progress[mode].started) {
@@ -1093,12 +956,8 @@ async function startGame(mode, retry = false) {
   gameState.currentLevel = currentLevel || 1;
   gameState.currentRound = window.progress[mode].round || 1;
 
-  const plannedPuzzle = retry
-    ? window.activeGame?.puzzleConfig
-    : nextPuzzleSuggestion;
-  if (!retry) {
-    nextPuzzleSuggestion = null;
-  }
+  const plannedPuzzle = nextPuzzleSuggestion;
+  nextPuzzleSuggestion = null;
   const playerLevel = difficultyState.level || 1;
   renderSkillRating(difficultyState.rating);
   const resolvedBoardSize =
@@ -1218,19 +1077,48 @@ async function startGame(mode, retry = false) {
     const attemptsForChallenge = Number(
       window.activeGame?.challengeAttempts || 0
     );
-    if (attemptsForChallenge > 1 && ratingResult.delta > 1) {
-      const cappedDelta = 1;
-      const currentRatingValue =
-        Number.isFinite(Number(ratingResult.currentRating))
-          ? Number(ratingResult.currentRating)
-          : Number(difficultyState.rating) || 0;
-      const nextRating = Math.max(
-        0,
-        Math.min(2500, currentRatingValue + cappedDelta)
-      );
-      ratingResult.delta = cappedDelta;
-      ratingResult.nextRating = nextRating;
+    const isRetry = attemptsForChallenge > 1;
+    const skipRatio = Math.max(
+      0,
+      Math.min(
+        1,
+        window.activeGame?.barRatioAtHide ??
+          window.activeGame?.initialRemainingRatio ??
+          0
+      )
+    );
+    let newDelta = 0;
+    let rewardRuleTriggered = 'notCompleted';
+    if (completed) {
+      if (isRetry) {
+        newDelta = 1;
+        rewardRuleTriggered = 'retry';
+      } else if (skipRatio > 0.75) {
+        if (maxSpeedBonusAchieved) {
+          newDelta = 4;
+          rewardRuleTriggered = 'skip75plusMaxSpeed';
+        } else if (usedSpeedBoost || ratingResult.speedBonusUsed) {
+          newDelta = 3;
+          rewardRuleTriggered = 'skip75plusSpeed';
+        } else {
+          newDelta = 2;
+          rewardRuleTriggered = 'skip75plus';
+        }
+      } else if (skipRatio > 0.5) {
+        newDelta = 2;
+        rewardRuleTriggered = 'skip50plus';
+      } else {
+        newDelta = 1;
+        rewardRuleTriggered = 'completed';
+      }
     }
+    const currentRatingValue =
+      Number.isFinite(Number(ratingResult.currentRating))
+        ? Number(ratingResult.currentRating)
+        : Number(difficultyState.rating) || 0;
+    ratingResult.delta = newDelta;
+    ratingResult.nextRating = Math.max(0, Math.min(2500, currentRatingValue + newDelta));
+    ratingResult.rewardRuleTriggered = rewardRuleTriggered;
     ratingResult.rating = ratingResult.nextRating;
     difficultyState = saveDifficultyState({
       rating: ratingResult.nextRating,
@@ -1515,12 +1403,6 @@ async function startGame(mode, retry = false) {
   let selectedGame = window.activeGame?.selectedGame;
   let boardKey = window.activeGame?.boardKey;
 
-  if (retry && window.activeGame?.gameSnapshot) {
-    snapshot = window.activeGame.gameSnapshot;
-    selectedGame = selectedGame ?? window.activeGame.selectedGame;
-    boardKey = boardKey ?? window.activeGame.boardKey;
-  }
-
   if (!snapshot) {
     const selection = await selectGameForLevel(
       boardDimension,
@@ -1654,31 +1536,15 @@ async function startGame(mode, retry = false) {
     }, 100);
   };
 
-  const runTimerTick = () => {
-    if (tutorialController.shouldHoldTimer()) {
-      return;
-    }
-    timeLeft = Math.max(0, timeLeft - 0.1 * speedMultiplier);
-    const ratio = timeLeft / config.time;
-    timerUI.setProgress(ratio);
-    if (window.activeGame) {
-      const clamped = Math.max(0, Math.min(1, ratio));
-      window.activeGame.lastTimerRatio = clamped;
-      window.activeGame.timeLeft = timeLeft;
-    }
-    tutorialController.onTimerTick(ratio);
-    if (timeLeft <= 0 && window.activeGame?.timer && !isRefilling) {
-      handleTimerFinished();
-    }
-  };
-
-  const startTimerInterval = () => {
-    if (window.activeGame?.timer) {
-      clearInterval(window.activeGame.timer);
-    }
-    timerUI.showTimer();
-    window.activeGame.timer = setInterval(runTimerTick, config.intervalSpeed);
-  };
+  setupTimer({
+    getConfig: () => config,
+    getTimeLeft: () => timeLeft,
+    setTimeLeft: (v) => {
+      timeLeft = v;
+    },
+    handleTimerFinished,
+    timerUI,
+  });
 
   timerUI.setProgress(1);
 
@@ -2025,18 +1891,10 @@ async function startGame(mode, retry = false) {
     let remainingRatio = initialRemainingRatio;
     if (window.activeGame?.timedOut) remainingRatio = 0;
 
-    const derivedSkipped =
-      playerSkipped ||
-      (Boolean(window.activeGame?.speedBoostUsed) &&
-        initialRemainingRatio > 0.5);
-
-    if (derivedSkipped && finalBoardCorrect && window.activeGame) {
-      window.activeGame.challengeCompleted = false;
-    }
-
     if (window.activeGame) {
-      window.activeGame.playerSkipped = derivedSkipped;
-      window.activeGame.challengeCompleted = allCorrect && !derivedSkipped;
+      window.activeGame.playerSkipped = playerSkipped;
+      const succeeded = allCorrect;
+      window.activeGame.challengeCompleted = succeeded;
       if (window.activeGame.timeLeftAtSolveEnd == null) {
         window.activeGame.timeLeftAtSolveEnd = timeLeft;
       }
@@ -2059,11 +1917,6 @@ async function startGame(mode, retry = false) {
       );
     }
 
-    if (derivedSkipped && window.activeGame?.challengeCompleted) {
-      console.warn('[SkillRating] skip and completed both true; forcing skip');
-      window.activeGame.challengeCompleted = false;
-    }
-
     if (window.activeGame?.challengeCompleted) {
       const boardKey = window.activeGame.boardKey;
       const stoneCount =
@@ -2078,6 +1931,11 @@ async function startGame(mode, retry = false) {
       if (boardKey) {
         incrementPlayerProgress(modeKey, boardKey, total);
       }
+    }
+
+    if (nextBtn) {
+      const succeeded = allCorrect;
+      nextBtn.textContent = succeeded ? 'Next Challenge' : 'Retry';
     }
 
     recordDifficultyOutcome(Boolean(window.activeGame?.timedOut));
@@ -2120,30 +1978,18 @@ async function startGame(mode, retry = false) {
         Boolean(document.querySelector('.level-up-overlay'));
 
       // Add score with delay for animation sync
-      if (allCorrect) {
-        nextBtn.disabled = true;
-
-        if (!window.activeGame.isRetry) {
-          setTimeout(() => {
-            addScore({
-              reactionTime: window.activeGame?.reactionTime || 10000,
-              finalBoardCorrect,
-              sequenceOrderIssues,
-            }).finally(() => {
-              if (!levelOverlayActive()) {
-                nextBtn.disabled = false;
-              }
-            });
-          }, ANIM_DELAY);
-        } else {
-          // still wait a bit so the animation feels natural
-          setTimeout(() => {
-            if (!levelOverlayActive()) {
-              nextBtn.disabled = false;
-            }
-          }, ANIM_DELAY);
-        }
-      }
+      nextBtn.disabled = true;
+      setTimeout(() => {
+        addScore({
+          reactionTime: window.activeGame?.reactionTime || 10000,
+          finalBoardCorrect,
+          sequenceOrderIssues,
+        }).finally(() => {
+          if (!levelOverlayActive()) {
+            nextBtn.disabled = false;
+          }
+        });
+      }, ANIM_DELAY);
     } else {
       if (
         currentMode === 'sequence' &&
