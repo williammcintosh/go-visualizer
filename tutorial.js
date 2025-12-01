@@ -416,9 +416,32 @@ function createTutorialController() {
     }
   }
 
+  function buildGameAttachment({
+    board,
+    timerContainer,
+    addTimeBonus,
+    eyeGlassBonus,
+    addTimeBoost,
+    clearBoard,
+    getTimeRatio,
+    mode,
+  }) {
+    return {
+      board,
+      timerContainer,
+      addTimeBonus,
+      eyeGlassBonus,
+      addTimeBoost,
+      clearBoard,
+      getTimeRatio,
+      mode,
+    };
+  }
+
   return {
     configure,
     attachToGame,
+    buildGameAttachment,
     shouldHoldTimer: () => active && holdTimer,
     shouldIgnoreDoubleTap: () => active && ignoreDoubleTap,
     onAddTimeUsed: () => {

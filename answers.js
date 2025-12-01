@@ -289,4 +289,31 @@ function checkAnswers({
   nextBtn.style.display = 'inline-block';
 }
 
-export { checkAnswers };
+function createCheckAnswersHandler({
+  timerUI,
+  config,
+  stones,
+  currentMode,
+  speedMultiplier,
+  MAX_SPEED_BONUS_THRESHOLD,
+  freezeBarState,
+  addScore,
+  logSkillRatingDebug,
+  getTimeLeft,
+}) {
+  return () =>
+    checkAnswers({
+      timerUI,
+      config,
+      stones,
+      currentMode,
+      speedMultiplier,
+      MAX_SPEED_BONUS_THRESHOLD,
+      freezeBarState,
+      addScore,
+      logSkillRatingDebug,
+      timeLeft: getTimeLeft?.() ?? 0,
+    });
+}
+
+export { checkAnswers, createCheckAnswersHandler };

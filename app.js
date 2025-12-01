@@ -1,18 +1,10 @@
-import { launchConfetti } from './anim.js';
 import {
-  updatePlayerRating,
-  calculateExpectedTime,
-  calculateLevelDiff,
-  incrementLevelIfNeeded,
-  pickNextPuzzle,
   getBoardSizeForLevel,
   saveDifficultyState,
   loadDifficultyState,
   MIN_STONES,
-  computeRatingResult,
   renderSkillRating,
   logSkillRatingDebug,
-  showRatingGain,
   writeSkillDebug,
   createDifficultyOutcomeRecorder,
 } from './difficulty.js';
@@ -21,11 +13,8 @@ import {
   freezeBarState,
   freezeBarStateNextFrame,
   showTimerToast,
-  handleDoubleTap,
-  preventPinchZoom,
   initDoubleTapListeners,
   startTimerInterval,
-  runTimerTick,
   setupTimer,
   initTimerFlow,
 } from './timer.js';
@@ -46,32 +35,20 @@ import {
 } from './board.js';
 import {
   addScore,
-  showScoreFloat,
-  animateScoreValue,
   deductPoints,
   flashScoreWarning,
   updateBonusAvailability,
-  setBonusState,
   isFeedbackVisible,
-  getAwardDuration,
   calculateSpeedBonus,
 } from './score.js';
 window.updateBonusAvailability = updateBonusAvailability;
 import { createTutorialController } from './tutorial.js';
-import { checkAnswers } from './answers.js';
+import { checkAnswers, createCheckAnswersHandler } from './answers.js';
 import {
-  initAddTimeBonus,
-  initEyeGlassBonus,
-  revealSequenceHints,
   initBonusFlow,
 } from './bonus.js';
 import {
-  determineBoardKey,
-  selectGameForLevel,
-  getPlayerProgressIndex,
   incrementPlayerProgress,
-  recordChallengeAttempt,
-  getChallengeAttemptCount,
   preparePuzzleData,
 } from './puzzle.js';
 import { setupGameState } from './gameStateSetup.js';
@@ -719,7 +696,7 @@ async function startGame(mode) {
     clearStones
   );
 
-  tutorialController.attachToGame({
+  const tutorialContext = tutorialController.buildGameAttachment({
     board,
     timerContainer,
     addTimeBonus,
@@ -732,6 +709,7 @@ async function startGame(mode) {
     getTimeRatio: () => timerFlow.getTimeLeft() / config.time,
     mode,
   });
+  tutorialController.attachToGame(tutorialContext);
 
   startTimerInterval();
   updateBonusAvailability();
@@ -759,18 +737,17 @@ async function startGame(mode) {
   });
   window.recordDifficultyOutcome = recordDifficultyOutcome;
 
-  const handleCheckAnswers = () =>
-    checkAnswers({
-      timerUI,
-      config,
-      stones,
-      currentMode,
-      speedMultiplier,
-      MAX_SPEED_BONUS_THRESHOLD,
-      freezeBarState,
-      addScore,
-      logSkillRatingDebug,
-      timeLeft: timerFlow.getTimeLeft(),
-    });
+  const handleCheckAnswers = createCheckAnswersHandler({
+    timerUI,
+    config,
+    stones,
+    currentMode,
+    speedMultiplier,
+    MAX_SPEED_BONUS_THRESHOLD,
+    freezeBarState,
+    addScore,
+    logSkillRatingDebug,
+    getTimeLeft: () => timerFlow.getTimeLeft(),
+  });
   checkBtn.onclick = handleCheckAnswers;
 }
