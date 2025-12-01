@@ -5,6 +5,7 @@ const DEFAULT_LEVEL = 1;
 const MIN_RATING = 0;
 const MAX_RATING = 2500;
 const MIN_STONES = 5;
+const SKILL_DEBUG_KEY = 'skill_rating_debug';
 
 const LEVEL_THRESHOLDS = [
   { level: 2, rating: 504 },
@@ -23,6 +24,109 @@ function clampRating(value) {
 
 function calculateExpectedTime(stoneCount, boardSize) {
   return 1 + stoneCount * 0.45 + boardSize * boardSize * 0.03;
+}
+
+function normalizeLatest(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const entries = Object.entries(value).filter(([k]) => !isNaN(Number(k)));
+    if (entries.length) {
+      const latest = entries.sort((a, b) => Number(a[0]) - Number(b[0])).pop();
+      return latest ? latest[1] : null;
+    }
+    return null;
+  }
+  return value ?? null;
+}
+
+function loadSkillDebugState() {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(localStorage.getItem(SKILL_DEBUG_KEY) || 'null');
+  } catch (_err) {
+    parsed = null;
+  }
+  const level = Number.isFinite(parsed?.level) ? parsed.level : 1;
+  return {
+    allowRatingChange: parsed?.allowRatingChange ?? false,
+    gameplayLevel: level,
+    completed: Boolean(normalizeLatest(parsed?.completed)),
+    usedSpeedBoost: Boolean(normalizeLatest(parsed?.usedSpeedBoost)),
+    maxSpeedBonusAchieved: Boolean(
+      normalizeLatest(parsed?.maxSpeedBonusAchieved)
+    ),
+    actualSeconds: Number(normalizeLatest(parsed?.actualSeconds)),
+    expectedTime: parsed?.expectedTime ?? null,
+    delta: parsed?.delta ?? null,
+    currentRating: parsed?.currentRating ?? null,
+    recordedAt: parsed?.recordedAt ?? null,
+    level,
+  };
+}
+
+function renderSkillRating(targetEl, rating, fallbackRating) {
+  if (!targetEl) return 0;
+  const incoming = Number(rating);
+  const fallback = Number(fallbackRating);
+  const value = Number.isFinite(incoming)
+    ? incoming
+    : Number.isFinite(fallback)
+    ? fallback
+    : 0;
+  targetEl.textContent = `Skill Rating: ${Math.round(value)}`;
+  return value;
+}
+
+function logSkillRatingDebug(data) {
+  console.log('[SkillRating]', JSON.stringify(data, null, 2));
+}
+
+function showRatingGain(amount, targetEl = null) {
+  const target = targetEl || document.body;
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  const baseY = rect.top + rect.height * 0.8;
+  const float = document.createElement('div');
+  float.className = 'score-float rating-float';
+  float.textContent = amount > 0 ? `+${amount}` : `${amount}`;
+  float.style.transform = `translate(${rect.left + rect.width / 2}px, ${baseY}px)`;
+  document.body.appendChild(float);
+  float
+    .animate(
+      [
+        { opacity: 0, transform: `${float.style.transform} scale(0.95)` },
+        { opacity: 1, transform: `${float.style.transform} scale(1.08)` },
+        { opacity: 0, transform: `${float.style.transform} translateY(-10px)` },
+      ],
+      {
+        duration: amount > 1 ? 950 : 750,
+        easing: 'ease-out',
+        fill: 'forwards',
+      }
+    )
+    .finished.finally(() => float.remove());
+}
+
+function writeSkillDebug(snapshot, level) {
+  const state = loadSkillDebugState();
+  const targetLevel = Number(level) || state.level || 1;
+  state.level = targetLevel;
+  state.allowRatingChange = snapshot.allowRatingChange;
+  state.gameplayLevel = snapshot.gameplayLevel;
+  state.expectedTime = snapshot.expectedTime;
+  state.delta = snapshot.delta;
+  state.currentRating = snapshot.currentRating;
+  state.stoneCount = snapshot.stoneCount;
+  state.boardSize = snapshot.boardSize;
+  state.completed = snapshot.completed;
+  state.usedSpeedBoost = snapshot.usedSpeedBoost;
+  state.maxSpeedBonusAchieved = snapshot.maxSpeedBonusAchieved;
+  state.actualSeconds = snapshot.actualSeconds;
+  state.recordedAt = Date.now();
+  try {
+    localStorage.setItem(SKILL_DEBUG_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.warn('Failed to write skill debug info', err);
+  }
 }
 
 function calculateLevelDiff(stoneCount, boardSize) {
@@ -339,4 +443,9 @@ export {
   loadDifficultyState,
   MIN_STONES,
   computeRatingResult,
+  loadSkillDebugState,
+  renderSkillRating,
+  logSkillRatingDebug,
+  showRatingGain,
+  writeSkillDebug,
 };

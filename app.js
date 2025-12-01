@@ -10,6 +10,10 @@ import {
   loadDifficultyState,
   MIN_STONES,
   computeRatingResult,
+  renderSkillRating,
+  logSkillRatingDebug,
+  showRatingGain,
+  writeSkillDebug,
 } from './difficulty.js';
 import {
   createTimerUI,
@@ -68,6 +72,17 @@ import {
   loadPuzzleForGame,
 } from './puzzle.js';
 import { setupGameState } from './gameStateSetup.js';
+import {
+  clearMarkers,
+  resetBoardUI,
+  resetLevelUI,
+  disableInteraction,
+  enableInteraction,
+  showMainScreen,
+  showHomeScreen,
+  prepareNextChallenge,
+  resetGameStateUI,
+} from './uiHelpers.js';
 
 const intro = document.getElementById('intro');
 const difficulty = document.getElementById('difficulty');
@@ -152,42 +167,8 @@ setupTimer({
 });
 let difficultyState = saveDifficultyState(loadDifficultyState());
 let nextPuzzleSuggestion = null;
-const SKILL_DEBUG_KEY = 'skill_rating_debug';
 const MAX_SPEED_BONUS_THRESHOLD = 7000; // ms threshold for max speed bonus
 const SKIP_BUTTON_IDS = ['skipBtn', 'skipButton', 'skipChallengeBtn'];
-function normalizeLatest(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const entries = Object.entries(value).filter(([k]) => !isNaN(Number(k)));
-    if (entries.length) {
-      const latest = entries.sort((a, b) => Number(a[0]) - Number(b[0])).pop();
-      return latest ? latest[1] : null;
-    }
-    return null;
-  }
-  return value ?? null;
-}
-function loadSkillDebugState() {
-  let parsed = null;
-  try {
-    parsed = JSON.parse(localStorage.getItem(SKILL_DEBUG_KEY) || 'null');
-  } catch (_err) {
-    parsed = null;
-  }
-  const level = Number.isFinite(parsed?.level) ? parsed.level : 1;
-  return {
-    allowRatingChange: parsed?.allowRatingChange ?? false,
-    gameplayLevel: level,
-    completed: Boolean(normalizeLatest(parsed?.completed)),
-    usedSpeedBoost: Boolean(normalizeLatest(parsed?.usedSpeedBoost)),
-    maxSpeedBonusAchieved: Boolean(normalizeLatest(parsed?.maxSpeedBonusAchieved)),
-    actualSeconds: Number(normalizeLatest(parsed?.actualSeconds)),
-    expectedTime: parsed?.expectedTime ?? null,
-    delta: parsed?.delta ?? null,
-    currentRating: parsed?.currentRating ?? null,
-    recordedAt: parsed?.recordedAt ?? null,
-    level,
-  };
-}
 const skillRatingEl = (() => {
   const existing = document.getElementById('skillRatingText');
   if (existing) return existing;
@@ -200,72 +181,7 @@ const skillRatingEl = (() => {
   levelInfo.appendChild(span);
   return span;
 })();
-renderSkillRating(difficultyState.rating);
-
-function renderSkillRating(rating) {
-  if (!skillRatingEl) return;
-  const incoming = Number(rating);
-  const fallback = Number(difficultyState?.rating);
-  const value = Number.isFinite(incoming)
-    ? incoming
-    : Number.isFinite(fallback)
-    ? fallback
-    : 0;
-  skillRatingEl.textContent = `Skill Rating: ${Math.round(value)}`;
-}
-
-function logSkillRatingDebug(data) {
-  console.log('[SkillRating]', JSON.stringify(data, null, 2));
-}
-
-function showRatingGain(amount) {
-  const target = skillRatingEl || document.body;
-  if (!target) return;
-  const rect = target.getBoundingClientRect();
-  const baseY = rect.top + rect.height * 0.8;
-  const float = document.createElement('div');
-  float.className = 'score-float rating-float';
-  float.textContent = amount > 0 ? `+${amount}` : `${amount}`;
-  float.style.transform = `translate(${rect.left + rect.width / 2}px, ${baseY}px)`;
-  document.body.appendChild(float);
-  float
-    .animate(
-      [
-        { opacity: 0, transform: `${float.style.transform} scale(0.95)` },
-        { opacity: 1, transform: `${float.style.transform} scale(1.08)` },
-        { opacity: 0, transform: `${float.style.transform} translateY(-10px)` },
-      ],
-      {
-        duration: amount > 1 ? 950 : 750,
-        easing: 'ease-out',
-        fill: 'forwards',
-      }
-    )
-    .finished.finally(() => float.remove());
-}
-
-function writeSkillDebug(snapshot, level) {
-  const state = loadSkillDebugState();
-  const targetLevel = Number(level) || state.level || 1;
-  state.level = targetLevel;
-  state.allowRatingChange = snapshot.allowRatingChange;
-  state.gameplayLevel = snapshot.gameplayLevel;
-  state.expectedTime = snapshot.expectedTime;
-  state.delta = snapshot.delta;
-  state.currentRating = snapshot.currentRating;
-  state.stoneCount = snapshot.stoneCount;
-  state.boardSize = snapshot.boardSize;
-  state.completed = snapshot.completed;
-  state.usedSpeedBoost = snapshot.usedSpeedBoost;
-  state.maxSpeedBonusAchieved = snapshot.maxSpeedBonusAchieved;
-  state.actualSeconds = snapshot.actualSeconds;
-  state.recordedAt = Date.now();
-  try {
-    localStorage.setItem(SKILL_DEBUG_KEY, JSON.stringify(state));
-  } catch (err) {
-    console.warn('Failed to write skill debug info', err);
-  }
-}
+renderSkillRating(skillRatingEl, difficultyState.rating, difficultyState?.rating);
 
 function normalizeProgress(progress = {}) {
   return {
@@ -474,6 +390,7 @@ const confirmNo = document.getElementById('confirmNo');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsHomeBtn = document.getElementById('settingsHomeBtn');
 const tapModeInputs = document.querySelectorAll('input[name="tapMode"]');
+const scoreElement = document.getElementById('scoreValue');
 
 const tutorialHasRun = localStorage.getItem(TUTORIAL_KEY) === '1';
 tutorialController.configure({ shouldRun: !saved && !tutorialHasRun });
@@ -501,7 +418,9 @@ if (saved) {
   gameState.score = saved.score || 0; // restore saved score or default to 0
 
   // update the score display on screen
-  document.getElementById('scoreValue').textContent = gameState.score;
+  if (scoreElement) {
+    scoreElement.textContent = gameState.score;
+  }
 } else {
   window.progress = normalizeProgress();
   gameState.score = 0; // ensure score starts at 0 for new games
@@ -509,11 +428,32 @@ if (saved) {
 refreshHomeButtons();
 updateBonusAvailability();
 
+const resetStateParams = {
+  localStorage,
+  PLAYER_PROGRESS_KEY,
+  CHALLENGE_ATTEMPTS_KEY,
+  saveDifficultyState,
+  renderSkillRating: (rating) =>
+    renderSkillRating(skillRatingEl, rating, rating),
+  normalizeProgress,
+  setProgress: (progress) => {
+    window.progress = progress;
+  },
+  gameState,
+  emptyPlayerProgress,
+  emptyChallengeAttempts,
+  resetTutorialProgress,
+  showScreen,
+  difficulty,
+  intro,
+  refreshHomeButtons,
+  scoreElement,
+};
+
 // Continue existing game, straight to maingame
-continueBtn.addEventListener('click', () => {
-  mainGame.style.display = 'none';
-  showScreen(difficulty, intro);
-});
+continueBtn.addEventListener('click', () =>
+  showMainScreen({ mainGame, show: difficulty, hide: intro, showScreen })
+);
 
 // Restart confirmation
 startBtn.addEventListener('click', () => {
@@ -521,49 +461,19 @@ startBtn.addEventListener('click', () => {
   if (hasSave) {
     confirmModal.classList.add('active');
   } else {
-    localStorage.removeItem('goVizProgress');
-    localStorage.removeItem('skill_rating');
-    localStorage.removeItem('skill_progress');
-    localStorage.removeItem(PLAYER_PROGRESS_KEY);
-    localStorage.removeItem(CHALLENGE_ATTEMPTS_KEY);
-    difficultyState = saveDifficultyState({ rating: 0, level: 1 });
-    renderSkillRating(difficultyState.rating);
-    window.progress = normalizeProgress();
-    gameState.currentRound = 1;
-    playerProgress = emptyPlayerProgress();
-    challengeAttempts = emptyChallengeAttempts();
-
-    // ADD THIS
-    gameState.score = 0;
-    document.getElementById('scoreValue').textContent = '0';
-    resetTutorialProgress();
-
-    showScreen(difficulty, intro);
-    refreshHomeButtons();
+    const resetResult = resetGameStateUI(resetStateParams);
+    difficultyState = resetResult.difficultyState;
+    playerProgress = resetResult.playerProgress;
+    challengeAttempts = resetResult.challengeAttempts;
   }
 });
 
 confirmYes.addEventListener('click', () => {
   confirmModal.classList.remove('active');
-  localStorage.removeItem('goVizProgress');
-  localStorage.removeItem('skill_rating');
-  localStorage.removeItem('skill_progress');
-  localStorage.removeItem(PLAYER_PROGRESS_KEY);
-  localStorage.removeItem(CHALLENGE_ATTEMPTS_KEY);
-  difficultyState = saveDifficultyState({ rating: 0, level: 1 });
-  renderSkillRating(difficultyState.rating);
-  window.progress = normalizeProgress();
-  gameState.currentRound = 1;
-  playerProgress = emptyPlayerProgress();
-  challengeAttempts = emptyChallengeAttempts();
-
-  // ADD THIS
-  gameState.score = 0;
-  document.getElementById('scoreValue').textContent = '0';
-  resetTutorialProgress();
-
-  showScreen(difficulty, intro);
-  refreshHomeButtons();
+  const resetResult = resetGameStateUI(resetStateParams);
+  difficultyState = resetResult.difficultyState;
+  playerProgress = resetResult.playerProgress;
+  challengeAttempts = resetResult.challengeAttempts;
 });
 
 confirmNo.addEventListener('click', () => {
@@ -617,36 +527,36 @@ const homeBtn2 = document.getElementById('homeBtn2');
 const levelOkBtn = document.getElementById('levelOkBtn');
 
 homeBtn2.addEventListener('click', () => {
-  const feedback = document.getElementById('feedback');
-  feedback.style.display = 'none';
-  feedback.classList.remove('show');
-  updateBonusAvailability();
-  if (window.activeGame?.timer) {
-    speedMultiplier = 1;
-    clearInterval(window.activeGame.timer);
-  }
-  mainGame.style.display = 'none';
-  showScreen(intro, difficulty);
+  showHomeScreen({
+    feedback: document.getElementById('feedback'),
+    updateBonusAvailability,
+    activeGame: window.activeGame,
+    mainGame,
+    intro,
+    difficulty,
+    showScreen,
+    setSpeedMultiplier: (value) => {
+      speedMultiplier = value;
+    },
+  });
 });
 
 nextBtn.onclick = async () => {
-  const feedback = document.getElementById('feedback');
-  feedback.classList.remove('show');
-  feedback.style.display = 'none';
-  updateBonusAvailability();
-  if (window.activeGame?.timer) {
-    speedMultiplier = 1;
-    clearInterval(window.activeGame.timer);
-  }
-  document.getElementById('board').replaceChildren();
-  document.querySelectorAll('.marker').forEach((m) => m.remove());
-  await startGame(window.activeGame.mode);
+  await prepareNextChallenge({
+    feedback: document.getElementById('feedback'),
+    updateBonusAvailability,
+    activeGame: window.activeGame,
+    setSpeedMultiplier: (value) => {
+      speedMultiplier = value;
+    },
+    board: document.getElementById('board'),
+    documentRoot: document,
+    startGame,
+  });
 };
 
 levelOkBtn.onclick = () => {
-  if (nextBtn.disabled) nextBtn.disabled = false;
-  nextBtn.click();
-  levelOkBtn.style.display = 'none';
+  resetLevelUI(nextBtn, levelOkBtn);
 };
 
 // ---------- Main Game ----------
@@ -660,7 +570,8 @@ async function startGame(mode) {
     MIN_STONES,
     getBoardSizeForLevel,
     updateModeIndicator,
-    renderSkillRating,
+    renderSkillRating: (rating) =>
+      renderSkillRating(skillRatingEl, rating, difficultyState?.rating),
     nextPuzzleSuggestion,
     setNextPuzzleSuggestion: (v) => {
       nextPuzzleSuggestion = v;
@@ -862,10 +773,10 @@ async function startGame(mode) {
     );
 
     if (ratingResult.delta > 0) {
-      showRatingGain(ratingResult.delta);
+      showRatingGain(ratingResult.delta, skillRatingEl);
     }
 
-    renderSkillRating(difficultyState.rating);
+    renderSkillRating(skillRatingEl, difficultyState.rating, difficultyState.rating);
     const targetLevelDiff = ratingResult.rating * 0.02;
     nextPuzzleSuggestion = pickNextPuzzle({
       targetLevelDiff,
@@ -887,8 +798,7 @@ async function startGame(mode) {
   window.recordDifficultyOutcome = recordDifficultyOutcome;
 
   const board = document.getElementById('board');
-  board.replaceChildren();
-  document.querySelectorAll('.marker').forEach((m) => m.remove());
+  resetBoardUI(board, document);
   document.documentElement.style.setProperty('--board-size', config.size);
 
   const checkBtn = timerUI.checkBtn;
@@ -1033,11 +943,12 @@ async function startGame(mode) {
       markPlayerSkipped();
     };
   }
-   const adjustTimeBy = (delta) => {
+  const adjustTimeBy = (delta) => {
     timeLeft = Math.min(config.time, Math.max(0, timeLeft + delta));
     timerUI.setProgress(timeLeft / config.time);
   };
-  toggleInteraction(false);
+  const getIntersections = () => document.querySelectorAll('.intersection');
+  disableInteraction(getIntersections(), checkBtn);
   if (window.activeGame?.timer) {
     speedMultiplier = 1;
     clearInterval(window.activeGame.timer);
@@ -1055,7 +966,7 @@ async function startGame(mode) {
       freezeBarStateNextFrame('postHideFrame', timeLeft, config.time);
     }
     clearStones();
-    toggleInteraction(true);
+    enableInteraction(getIntersections(), checkBtn);
     addTimeBonus.classList.add('disabled');
     updateBonusAvailability();
     timerUI.setProgress(0);
@@ -1115,7 +1026,7 @@ async function startGame(mode) {
     addTimeBoost: (seconds) => adjustTimeBy(seconds),
     clearBoard: () => {
       clearStones();
-      document.querySelectorAll('.marker').forEach((m) => m.remove());
+      clearMarkers(document);
     },
     getTimeRatio: () => timeLeft / config.time,
     mode,
@@ -1125,14 +1036,6 @@ async function startGame(mode) {
   updateBonusAvailability();
 
   // ---------- Inner Helpers ----------
-
-  function toggleInteraction(enable) {
-    document.querySelectorAll('.intersection').forEach((i) => {
-      i.style.pointerEvents = enable ? 'auto' : 'none';
-    });
-    checkBtn.disabled = !enable;
-    checkBtn.style.opacity = enable ? '1' : '0.5';
-  }
 
   const paramsForCheckAnswers = {
     timerUI,
