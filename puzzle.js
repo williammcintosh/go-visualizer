@@ -118,6 +118,7 @@ async function loadPuzzleForGame({
   challengeAttempts,
   savePlayerProgress,
   saveChallengeAttempts,
+  activeGame,
 }) {
   const selection = await selectGameForLevel(
     boardDimension,
@@ -130,35 +131,41 @@ async function loadPuzzleForGame({
   const stoneTarget = Number.isFinite(Number(selectedGame?.num_moves))
     ? Number(selectedGame.num_moves)
     : config.stoneCount;
-  window.activeGame.puzzleConfig = {
-    stoneCount: stoneTarget,
-    boardSize: boardDimension,
-  };
-  window.activeGame.challengeIndex = selection.challengeMeta?.index ?? 0;
-  window.activeGame.challengePoolSize = selection.challengeMeta?.poolSize ?? 0;
-  window.activeGame.challengeStoneCount =
-    selection.challengeMeta?.stoneCount ?? stoneTarget;
-  window.activeGame.challengeMode = selection.challengeMeta?.mode ?? currentMode;
+  if (activeGame) {
+    activeGame.puzzleConfig = {
+      stoneCount: stoneTarget,
+      boardSize: boardDimension,
+    };
+    activeGame.challengeIndex = selection.challengeMeta?.index ?? 0;
+    activeGame.challengePoolSize = selection.challengeMeta?.poolSize ?? 0;
+    activeGame.challengeStoneCount =
+      selection.challengeMeta?.stoneCount ?? stoneTarget;
+    activeGame.challengeMode = selection.challengeMeta?.mode ?? currentMode;
+  }
   const snapshot = await window.GoMiniBoardLogic.getGameSnapshot({
     size: boardKey,
     gameId: selectedGame.game_id,
     stoneTarget,
   });
-  window.activeGame.selectedGame = selectedGame;
-  window.activeGame.boardKey = boardKey;
-  window.activeGame.gameSnapshot = snapshot;
+  if (activeGame) {
+    activeGame.selectedGame = selectedGame;
+    activeGame.boardKey = boardKey;
+    activeGame.gameSnapshot = snapshot;
+  }
 
   const attempts = recordChallengeAttempt(
     challengeAttempts,
-    window.activeGame.challengeMode || currentMode,
-    window.activeGame.boardKey || boardKey,
+    activeGame?.challengeMode || currentMode,
+    activeGame?.boardKey || boardKey,
     {
-      gameId: window.activeGame?.selectedGame?.game_id ?? selectedGame?.game_id,
-      index: window.activeGame.challengeIndex ?? 0,
+      gameId: activeGame?.selectedGame?.game_id ?? selectedGame?.game_id,
+      index: activeGame?.challengeIndex ?? 0,
     },
     saveChallengeAttempts
   );
-  window.activeGame.challengeAttempts = attempts;
+  if (activeGame) {
+    activeGame.challengeAttempts = attempts;
+  }
 
   const stones = Object.entries(snapshot.stoneMap).map(([coords, stoneColor]) => {
     const [x, y] = coords.split(',').map(Number);
@@ -179,6 +186,36 @@ async function loadPuzzleForGame({
   };
 }
 
+function mapStoneMapToStones(stoneMap) {
+  if (!stoneMap || typeof stoneMap !== 'object') return [];
+  return Object.entries(stoneMap).map(([coords, stoneColor]) => {
+    const [x, y] = coords.split(',').map(Number);
+    return { x, y, color: stoneColor === 'B' ? 'black' : 'white' };
+  });
+}
+
+async function preparePuzzleData({
+  boardDimension,
+  config,
+  currentMode,
+  playerProgress,
+  challengeAttempts,
+  savePlayerProgress,
+  saveChallengeAttempts,
+  activeGame,
+}) {
+  return loadPuzzleForGame({
+    boardDimension,
+    config,
+    currentMode,
+    playerProgress,
+    challengeAttempts,
+    savePlayerProgress,
+    saveChallengeAttempts,
+    activeGame,
+  });
+}
+
 export {
   determineBoardKey,
   selectGameForLevel,
@@ -187,4 +224,6 @@ export {
   recordChallengeAttempt,
   getChallengeAttemptCount,
   loadPuzzleForGame,
+  mapStoneMapToStones,
+  preparePuzzleData,
 };

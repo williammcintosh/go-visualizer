@@ -87,6 +87,13 @@ async function playSequence(
   }
 }
 
+function createIntersectionHelpers(board) {
+  const getIntersectionRef = (x, y) => getIntersection(board, x, y);
+  const updateSequenceIntersectionsRef = (prevMap, nextMap) =>
+    updateSequenceIntersections(prevMap, nextMap, getIntersectionRef);
+  return { getIntersectionRef, updateSequenceIntersectionsRef };
+}
+
 export {
   drawBoard,
   clearStones,
@@ -94,4 +101,5 @@ export {
   updateSequenceIntersections,
   playSequence,
   getIntersection,
+  createIntersectionHelpers,
 };

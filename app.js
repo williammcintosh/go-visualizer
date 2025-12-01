@@ -26,6 +26,7 @@ import {
   startTimerInterval,
   runTimerTick,
   setupTimer,
+  initTimerFlow,
 } from './timer.js';
 import {
   loadTapMode,
@@ -39,9 +40,8 @@ import {
   drawBoard,
   clearStones,
   renderFinalStones,
-  updateSequenceIntersections,
   playSequence,
-  getIntersection,
+  createIntersectionHelpers,
 } from './board.js';
 import {
   addScore,
@@ -69,7 +69,7 @@ import {
   incrementPlayerProgress,
   recordChallengeAttempt,
   getChallengeAttemptCount,
-  loadPuzzleForGame,
+  preparePuzzleData,
 } from './puzzle.js';
 import { setupGameState } from './gameStateSetup.js';
 import {
@@ -806,6 +806,7 @@ async function startGame(mode) {
   const skipButton =
     SKIP_BUTTON_IDS.map((id) => document.getElementById(id)).find(Boolean) ||
     null;
+  const getIntersections = () => document.querySelectorAll('.intersection');
 
   if (checkButtonShowTimeout) {
     clearTimeout(checkButtonShowTimeout);
@@ -815,6 +816,36 @@ async function startGame(mode) {
 
   const addTimeBonus = document.getElementById('addTimeBonus');
   const eyeGlassBonus = document.getElementById('eyeGlassBonus');
+  const getCheckButtonShowTimeout = () => checkButtonShowTimeout;
+  const setCheckButtonShowTimeout = (v) => {
+    checkButtonShowTimeout = v;
+  };
+  const timerFlow = initTimerFlow({
+    config,
+    activeGame: window.activeGame,
+    timerUI,
+    addTimeBonus,
+    checkBtn,
+    getIntersections,
+    freezeBarStateNextFrameFn: freezeBarStateNextFrame,
+    clearStonesFn: clearStones,
+    enableInteractionFn: enableInteraction,
+    disableInteractionFn: disableInteraction,
+    updateBonusAvailabilityFn: updateBonusAvailability,
+    setSpeedMultiplierFn: (v) => {
+      speedMultiplier = v;
+    },
+    getIsRefilling: () => isRefilling,
+    setCanUseEyeGlass: (v) => {
+      canUseEyeGlass = v;
+      window.canUseEyeGlass = v;
+    },
+    getCheckButtonShowTimeout,
+    setCheckButtonShowTimeout,
+    logSkillRatingDebugFn: logSkillRatingDebug,
+    checkAnswersFn: () => checkAnswers(),
+  });
+  timerFlow.prepareTimerStart();
 
   // At start: timer is active, so eyeGlass disabled
   canUseEyeGlass = false;
@@ -841,9 +872,9 @@ async function startGame(mode) {
       isRefilling = v;
       window.isRefilling = v;
     },
-    getTimeLeft: () => timeLeft,
+    getTimeLeft: () => timerFlow.getTimeLeft(),
     setTimeLeft: (v) => {
-      timeLeft = v;
+      timerFlow.setTimeLeft(v);
     },
     isFeedbackVisible,
   });
@@ -873,135 +904,40 @@ async function startGame(mode) {
 
   eyeGlassBonus.addEventListener('click', eyeGlassHandler);
 
-  let snapshot = null;
-  let selectedGame = window.activeGame?.selectedGame;
-  let boardKey = window.activeGame?.boardKey;
-
-  if (!snapshot) {
-    const loaded = await loadPuzzleForGame({
-      boardDimension,
-      config,
-      currentMode,
-      playerProgress,
-      challengeAttempts,
-      savePlayerProgress,
-      saveChallengeAttempts,
-    });
-    snapshot = loaded.snapshot;
-    selectedGame = loaded.selectedGame;
-    boardKey = loaded.boardKey;
-  }
-  if (!selectedGame && window.activeGame?.selectedGame) {
-    selectedGame = window.activeGame.selectedGame;
-  }
-  if (!boardKey && window.activeGame?.boardKey) {
-    boardKey = window.activeGame.boardKey;
-  }
-
-  const stones = Object.entries(snapshot.stoneMap).map(
-    ([coords, stoneColor]) => {
-      const [x, y] = coords.split(',').map(Number);
-      return {
-        x,
-        y,
-        color: stoneColor === 'B' ? 'black' : 'white',
-      };
-    }
-  );
+  const { snapshot, stones } = await preparePuzzleData({
+    boardDimension,
+    config,
+    currentMode,
+    playerProgress,
+    challengeAttempts,
+    savePlayerProgress,
+    saveChallengeAttempts,
+    activeGame: window.activeGame,
+  });
 
   drawBoard(board, config.size, toggleStone);
+  timerFlow.lockInteractions();
 
-  // Countdown
-  let timeLeft = config.time;
-  if (window.activeGame) {
-    window.activeGame.timeLeft = timeLeft;
-  }
-  const markPlayerSkipped = () => {
-    if (!window.activeGame) return;
-    window.activeGame.playerSkipped = true;
-    freezeBarStateNextFrame('postHideFrame', timeLeft, config.time);
-    if (window.activeGame.timeLeftAtSolveEnd == null) {
-      window.activeGame.timeLeftAtSolveEnd = timeLeft;
-    }
-    window.activeGame.challengeCompleted = false;
-    logSkillRatingDebug({
-      timerPhase: {
-        barRatioAtHide: window.activeGame.barRatioAtHide,
-        timeLeftAtHide: window.activeGame.timeLeftAtHide,
-        usedAssistBonus: Boolean(window.activeGame.usedAssistBonus),
-        usedSpeedBoost: Boolean(window.activeGame.speedBoostUsed),
-        playerSkipped: true,
-      },
-      solvePhase: {},
-      rewardPhase: {},
-      meta: { completed: false, totalTime: config.time, action: 'skipButton' },
-    });
-    checkAnswers();
-  };
   if (skipButton) {
     skipButton.onclick = () => {
-      markPlayerSkipped();
+      timerFlow.markPlayerSkipped();
     };
   }
-  const adjustTimeBy = (delta) => {
-    timeLeft = Math.min(config.time, Math.max(0, timeLeft + delta));
-    timerUI.setProgress(timeLeft / config.time);
-  };
-  const getIntersections = () => document.querySelectorAll('.intersection');
-  disableInteraction(getIntersections(), checkBtn);
-  if (window.activeGame?.timer) {
-    speedMultiplier = 1;
-    clearInterval(window.activeGame.timer);
-  }
-
-  const handleTimerFinished = () => {
-    if (window.activeGame?.timer) {
-      clearInterval(window.activeGame.timer);
-      window.activeGame.timer = null;
-    }
-    speedMultiplier = 1;
-    window.activeGame.timerEndTime = Date.now();
-    window.activeGame.timedOut = true;
-    if (window.activeGame && window.activeGame.initialRemainingRatio === null) {
-      freezeBarStateNextFrame('postHideFrame', timeLeft, config.time);
-    }
-    clearStones();
-    enableInteraction(getIntersections(), checkBtn);
-    addTimeBonus.classList.add('disabled');
-    updateBonusAvailability();
-    timerUI.setProgress(0);
-    if (window.activeGame) {
-      window.activeGame.timeLeft = 0;
-    }
-    if (checkButtonShowTimeout) {
-      clearTimeout(checkButtonShowTimeout);
-    }
-    checkButtonShowTimeout = setTimeout(() => {
-      timerUI.showCheck();
-      if (!isRefilling) {
-        canUseEyeGlass = true;
-        window.canUseEyeGlass = canUseEyeGlass;
-        updateBonusAvailability();
-      }
-      checkButtonShowTimeout = null;
-    }, 100);
-  };
 
   setupTimer({
     getConfig: () => config,
-    getTimeLeft: () => timeLeft,
+    getTimeLeft: () => timerFlow.getTimeLeft(),
     setTimeLeft: (v) => {
-      timeLeft = v;
+      timerFlow.setTimeLeft(v);
     },
-    handleTimerFinished,
+    handleTimerFinished: () => timerFlow.handleTimerFinished(),
     timerUI,
   });
 
   timerUI.setProgress(1);
 
-  const getIntersectionRef = (x, y) => getIntersection(board, x, y);
-  const updateSequenceIntersectionsRef = (prevMap, nextMap) =>
-    updateSequenceIntersections(prevMap, nextMap, getIntersectionRef);
+  const { getIntersectionRef, updateSequenceIntersectionsRef } =
+    createIntersectionHelpers(board);
 
   if (currentMode === 'sequence') {
     await playSequence(
@@ -1023,12 +959,12 @@ async function startGame(mode) {
     timerContainer,
     addTimeBonus,
     eyeGlassBonus,
-    addTimeBoost: (seconds) => adjustTimeBy(seconds),
+    addTimeBoost: (seconds) => timerFlow.adjustTimeBy(seconds),
     clearBoard: () => {
       clearStones();
       clearMarkers(document);
     },
-    getTimeRatio: () => timeLeft / config.time,
+    getTimeRatio: () => timerFlow.getTimeLeft() / config.time,
     mode,
   });
 
@@ -1040,7 +976,6 @@ async function startGame(mode) {
   const paramsForCheckAnswers = {
     timerUI,
     config,
-    timeLeft,
     stones,
     currentMode,
     speedMultiplier,
@@ -1049,6 +984,7 @@ async function startGame(mode) {
     addScore,
     logSkillRatingDebug,
   };
-  const handleCheckAnswers = () => checkAnswers(paramsForCheckAnswers);
+  const handleCheckAnswers = () =>
+    checkAnswers({ ...paramsForCheckAnswers, timeLeft: timerFlow.getTimeLeft() });
   checkBtn.onclick = handleCheckAnswers;
 }

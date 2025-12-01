@@ -19,6 +19,123 @@ function setupTimer(overrides = {}) {
   deps = { ...deps, ...overrides };
 }
 
+function initTimerFlow({
+  config,
+  activeGame,
+  timerUI,
+  addTimeBonus,
+  checkBtn,
+  getIntersections,
+  freezeBarStateNextFrameFn,
+  clearStonesFn,
+  enableInteractionFn,
+  disableInteractionFn,
+  updateBonusAvailabilityFn,
+  setSpeedMultiplierFn,
+  getIsRefilling,
+  setCanUseEyeGlass,
+  getCheckButtonShowTimeout,
+  setCheckButtonShowTimeout,
+  logSkillRatingDebugFn,
+  checkAnswersFn,
+}) {
+  let timeLeft = config.time;
+
+  const setTimeLeft = (v) => {
+    timeLeft = v;
+    if (activeGame) {
+      activeGame.timeLeft = v;
+    }
+  };
+
+  const getTimeLeft = () => timeLeft;
+
+  const prepareTimerStart = () => {
+    disableInteractionFn(getIntersections(), checkBtn);
+    if (activeGame?.timer) {
+      setSpeedMultiplierFn(1);
+      clearInterval(activeGame.timer);
+    }
+    setTimeLeft(config.time);
+    timerUI?.setProgress?.(1);
+  };
+
+  const markPlayerSkipped = () => {
+    if (!activeGame) return;
+    activeGame.playerSkipped = true;
+    freezeBarStateNextFrameFn('postHideFrame', timeLeft, config.time);
+    if (activeGame.timeLeftAtSolveEnd == null) {
+      activeGame.timeLeftAtSolveEnd = timeLeft;
+    }
+    activeGame.challengeCompleted = false;
+    logSkillRatingDebugFn?.({
+      timerPhase: {
+        barRatioAtHide: activeGame.barRatioAtHide,
+        timeLeftAtHide: activeGame.timeLeftAtHide,
+        usedAssistBonus: Boolean(activeGame.usedAssistBonus),
+        usedSpeedBoost: Boolean(activeGame.speedBoostUsed),
+        playerSkipped: true,
+      },
+      solvePhase: {},
+      rewardPhase: {},
+      meta: { completed: false, totalTime: config.time, action: 'skipButton' },
+    });
+    checkAnswersFn?.();
+  };
+
+  const adjustTimeBy = (delta) => {
+    const next = Math.min(config.time, Math.max(0, timeLeft + delta));
+    setTimeLeft(next);
+    timerUI?.setProgress?.(next / config.time);
+  };
+
+  const handleTimerFinished = () => {
+    if (activeGame?.timer) {
+      clearInterval(activeGame.timer);
+      activeGame.timer = null;
+    }
+    setSpeedMultiplierFn(1);
+    if (activeGame) {
+      activeGame.timerEndTime = Date.now();
+      activeGame.timedOut = true;
+    }
+    if (activeGame && activeGame.initialRemainingRatio === null) {
+      freezeBarStateNextFrameFn('postHideFrame', timeLeft, config.time);
+    }
+    clearStonesFn?.();
+    enableInteractionFn(getIntersections(), checkBtn);
+    addTimeBonus?.classList.add('disabled');
+    updateBonusAvailabilityFn?.();
+    timerUI?.setProgress?.(0);
+    setTimeLeft(0);
+    const existing = getCheckButtonShowTimeout?.();
+    if (existing) {
+      clearTimeout(existing);
+    }
+    const timeout = setTimeout(() => {
+      timerUI?.showCheck?.();
+      if (!getIsRefilling?.()) {
+        setCanUseEyeGlass?.(true);
+        updateBonusAvailabilityFn?.();
+      }
+      setCheckButtonShowTimeout?.(null);
+    }, 100);
+    setCheckButtonShowTimeout?.(timeout);
+  };
+
+  setTimeLeft(config.time);
+
+  return {
+    prepareTimerStart,
+    lockInteractions: () => disableInteractionFn(getIntersections(), checkBtn),
+    markPlayerSkipped,
+    adjustTimeBy,
+    handleTimerFinished,
+    getTimeLeft,
+    setTimeLeft,
+  };
+}
+
 function createTimerUI() {
   const container = document.getElementById('timerContainer');
   const bar = document.getElementById('timerBar');
@@ -222,4 +339,5 @@ export {
   startTimerInterval,
   runTimerTick,
   setupTimer,
+  initTimerFlow,
 };
