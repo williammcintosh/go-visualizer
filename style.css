@@ -22,6 +22,7 @@ body {
   margin: 0;
   padding: 0;
   touch-action: none;
+  overflow-x: hidden;
 }
 
 body {
@@ -494,6 +495,20 @@ button:not(.bonus-button):not(#checkBtn):disabled {
 
 .mode-card button {
   width: min(220px, 60vw);
+}
+
+/* Narrow, device-responsive stone buttons (override global button widths) */
+.level-select__stone-btn-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.mode-card.level-select__board-card .level-select__stone-btn,
+.level-select__stone-btn-wrap .level-select__stone-btn {
+  width: clamp(140px, 40vw, 200px);
+  min-width: 140px;
+  max-width: 200px;
+  align-self: center;
 }
 
 .mode-status {

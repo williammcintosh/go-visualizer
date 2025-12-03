@@ -85,6 +85,7 @@ function createLevelSelectController({
         pointer-events: none;
         transition: opacity 200ms ease;
         overflow-y: auto;
+        overflow-x: hidden;
         z-index: 20;
       }
       #levelSelectScreen.active {
@@ -92,22 +93,35 @@ function createLevelSelectController({
         pointer-events: auto;
       }
       .level-select__inner {
-        width: var(--layout-width, min(90vw, 420px));
-        max-width: var(--layout-width, 420px);
+        width: min(720px, 100%);
+        max-width: min(720px, 100%);
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 1.25rem;
+        align-items: center;
+        margin: 0 auto;
+      }
+      .level-select__masthead {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        align-items: center;
       }
       .level-select__header {
-        display: flex;
+        width: 100%;
+        display: grid;
+        grid-template-columns: auto 1fr;
         align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
+        gap: 0.85rem;
       }
       .level-select__title {
         display: flex;
         flex-direction: column;
         gap: 0.15rem;
+        align-items: center;
+        text-align: center;
+        width: 100%;
       }
       .level-select__eyebrow {
         font-size: 0.9rem;
@@ -117,22 +131,23 @@ function createLevelSelectController({
       }
       .level-select__heading {
         margin: 0;
-        font-size: 1.5rem;
+        font-size: 1.65rem;
+        text-align: center;
       }
       .level-select__grid {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 1rem;
         width: 100%;
+        align-items: center;
       }
       .level-select__board-card {
-        position: relative;
-        width: 100%;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-        overflow: hidden;
+        width: var(--layout-width, min(90vw, 420px));
+        max-width: var(--layout-width, 420px);
         display: flex;
         flex-direction: column;
-        gap: 0.35rem;
+        align-items: stretch;
+        gap: 0.75rem;
       }
       .level-select__rating {
         position: sticky;
@@ -141,12 +156,24 @@ function createLevelSelectController({
         background: rgba(255, 255, 255, 0.92);
         border: 2px solid rgba(70, 116, 65, 0.35);
         color: #0b360f;
-        padding: 0.5rem 0.75rem;
+        padding: 0.65rem 0.9rem;
         border-radius: 12px;
         text-align: center;
         font-weight: 700;
         box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
         margin-bottom: 0.35rem;
+        width: min(460px, 100%);
+      }
+      .level-select__rating-label {
+        margin: 0 0 0.15rem;
+        font-size: 0.9rem;
+        letter-spacing: 0.04em;
+      }
+      .level-select__rating-value {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
       }
       .level-select__board-card.locked {
         opacity: 0.7;
@@ -157,11 +184,11 @@ function createLevelSelectController({
       }
       .level-select__board-icon {
         position: relative;
+        width: 90px;
       }
       .level-select__board-icon img {
         display: block;
         width: 100%;
-        max-width: 110px;
         filter: drop-shadow(0 4px 10px rgba(0,0,0,0.08));
       }
       .level-select__board-card.locked .level-select__board-icon img,
@@ -176,11 +203,11 @@ function createLevelSelectController({
         box-shadow: none;
         cursor: not-allowed;
       }
-      .level-select__board-content .mode-status {
-        letter-spacing: 0.12em;
-        text-align: center;
+      .level-select__board-content {
+        flex: 1;
       }
-      .level-select__board-row {
+      .level-select__card-row {
+        width: 100%;
         display: flex;
         align-items: center;
         gap: 1rem;
@@ -191,11 +218,11 @@ function createLevelSelectController({
         max-height: 0;
         opacity: 0;
         transition: max-height 200ms ease, opacity 180ms ease, padding 160ms ease;
-        padding: 0 0 0 0;
+        padding: 0;
       }
       .level-select__drawer.open {
         opacity: 1;
-        padding: 0.5rem 0 0.6rem;
+        padding: 0.75rem 0 0.6rem;
       }
       .level-select__drawer-content {
         background: rgba(255, 255, 255, 0.86);
@@ -203,6 +230,8 @@ function createLevelSelectController({
         padding: 0.75rem;
         border: 2px solid rgba(70, 116, 65, 0.18);
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+        width: 100%;
+        box-sizing: border-box;
       }
       .level-select__lock {
         position: absolute;
@@ -225,9 +254,10 @@ function createLevelSelectController({
       }
       .level-select__stone-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 180px));
-        gap: 0.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.65rem;
         justify-content: center;
+        width: 100%;
       }
       .level-select__stone-item {
         display: flex;
@@ -280,6 +310,7 @@ function createLevelSelectController({
       .level-select__stone-header {
         margin: 0 0 0.5rem;
         font-size: 1.05rem;
+        text-align: center;
       }
       .level-select__note {
         margin: 0.25rem 0 0.75rem;
@@ -290,6 +321,20 @@ function createLevelSelectController({
         border-radius: 10px;
         padding: 0.65rem 0.9rem;
         min-width: 92px;
+        justify-self: start;
+      }
+      @media (max-width: 540px) {
+        .level-select__header {
+          grid-template-columns: 1fr;
+          justify-items: center;
+        }
+        .level-select__back {
+          width: min(320px, 100%);
+          justify-self: center;
+        }
+        .level-select__heading {
+          font-size: 1.5rem;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -409,7 +454,7 @@ function createLevelSelectController({
     const el = state.screen?.querySelector('#levelSelectRating');
     if (!el) return;
     const rating = Math.round(getRating());
-    el.textContent = `Skill Rating: ${rating}`;
+    el.textContent = `${rating}`;
   }
 
   function buildScreen() {
@@ -420,14 +465,20 @@ function createLevelSelectController({
     screen.className = 'screen';
     screen.innerHTML = `
       <div class="level-select__inner">
-        <div class="level-select__rating" id="levelSelectRating">Skill Rating: --</div>
-        <div class="level-select__header">
-          <button class="level-select__back" data-action="back">Back</button>
-          <div class="level-select__title">
-            <h2 class="level-select__heading">Pick a board</h2>
+        <div class="level-select__masthead">
+          <div class="level-select__rating">
+            <p class="level-select__rating-label">Skill Rating</p>
+            <p class="level-select__rating-value" id="levelSelectRating">--</p>
+          </div>
+          <div class="level-select__header">
+            <button class="level-select__back" data-action="back">Back</button>
+            <div class="level-select__title">
+              <p class="level-select__eyebrow">Board Select</p>
+              <h2 class="level-select__heading">Pick a board</h2>
+            </div>
           </div>
         </div>
-        <div class="level-select__grid mode-grid" id="boardOptions"></div>
+        <div class="level-select__grid" id="boardOptions"></div>
       </div>
     `;
 
@@ -462,12 +513,12 @@ function createLevelSelectController({
       const boardKey = `${size}x${size}`;
       const locked = !isBoardUnlocked(size, rating);
       const card = document.createElement('div');
-      card.className = 'mode-card level-select__board-card';
+      card.className = 'mode-card mode-card--horizontal level-select__board-card';
       if (locked) card.classList.add('locked');
       if (state.selection?.boardSize === size) card.classList.add('selected');
 
-      const topRow = document.createElement('div');
-      topRow.className = 'mode-card--horizontal level-select__board-row';
+      const cardRow = document.createElement('div');
+      cardRow.className = 'level-select__card-row mode-card--horizontal';
 
       const iconWrap = document.createElement('div');
       iconWrap.className = 'mode-icon level-select__board-icon';
@@ -506,9 +557,9 @@ function createLevelSelectController({
 
       content.appendChild(btn);
       content.appendChild(status);
-      topRow.appendChild(iconWrap);
-      topRow.appendChild(content);
-      card.appendChild(topRow);
+      cardRow.appendChild(iconWrap);
+      cardRow.appendChild(content);
+      card.appendChild(cardRow);
       if (!locked) {
         const drawer = document.createElement('div');
         drawer.className = 'level-select__drawer';
@@ -562,6 +613,8 @@ function createLevelSelectController({
       item.className = 'level-select__stone-item';
       const inner = document.createElement('div');
       inner.className = 'level-select__stone-item-inner';
+      const btnWrap = document.createElement('div');
+      btnWrap.className = 'level-select__stone-btn-wrap';
       const btn = document.createElement('button');
       btn.className = 'level-select__stone-btn';
       if (locked) btn.classList.add('locked');
@@ -580,7 +633,8 @@ function createLevelSelectController({
         }
         startWithSelection({ boardSize, stoneCount, mode: state.mode });
       };
-      inner.appendChild(btn);
+      btnWrap.appendChild(btn);
+      inner.appendChild(btnWrap);
       if (locked) {
         const lockImg = document.createElement('img');
         lockImg.src = 'images/lock_lock.png';

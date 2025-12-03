@@ -136,23 +136,9 @@ function checkAnswers({
   };
   toggleInteraction(false);
 
-  let levelIncreased = false;
-
-  if (allCorrect) {
-    window.gameState.currentRound++;
-    if (window.gameState.currentRound > window.gameState.totalRounds) {
-      window.progress[currentMode].level++;
-      window.gameState.currentRound = 1;
-      levelIncreased = true;
-    }
-  }
-
-  window.progress[currentMode].round = window.gameState.currentRound;
-
   const feedback = document.getElementById('feedback');
   const msg = document.getElementById('feedbackMsg');
   const nextBtn = document.getElementById('nextBtn');
-  const okBtn = document.getElementById('levelOkBtn');
   feedback.style.display = 'block';
   requestAnimationFrame(() => {
     feedback.classList.add('show');
@@ -220,24 +206,7 @@ function checkAnswers({
     window.recordDifficultyOutcome(Boolean(window.activeGame?.timedOut));
   }
 
-  if (levelIncreased) {
-    msg.textContent = `Level ${window.progress[currentMode].level} now unlocked!`;
-    nextBtn.disabled = true;
-    if (okBtn) {
-      okBtn.style.display = 'inline-block';
-    }
-    levelIncreased = false;
-    setTimeout(() => {
-      addScore({
-        reactionTime: window.activeGame?.reactionTime || 10000,
-        finalBoardCorrect,
-        sequenceOrderIssues,
-      });
-    }, window.ANIM_DELAY);
-  } else if (allCorrect) {
-    if (okBtn) {
-      okBtn.style.display = 'none';
-    }
+  if (allCorrect) {
     const praise = [
       'Incredible!',
       'Well done!',

@@ -16,16 +16,6 @@ function resetBoardUI(board, root = document) {
   clearMarkers(root);
 }
 
-function resetLevelUI(nextBtn, levelOkBtn) {
-  if (nextBtn?.disabled) {
-    nextBtn.disabled = false;
-  }
-  nextBtn?.click();
-  if (levelOkBtn) {
-    levelOkBtn.style.display = 'none';
-  }
-}
-
 function disableInteraction(intersections, checkBtn) {
   intersections?.forEach?.((intersection) => {
     intersection.style.pointerEvents = 'none';
@@ -123,7 +113,6 @@ function resetGameStateUI({
   renderSkillRating(difficultyState.rating);
   const progress = normalizeProgress();
   setProgress?.(progress);
-  gameState.currentRound = 1;
   const playerProgress = emptyPlayerProgress();
   const challengeAttempts = emptyChallengeAttempts();
 
@@ -143,7 +132,6 @@ export {
   hideFeedbackPanel,
   clearMarkers,
   resetBoardUI,
-  resetLevelUI,
   disableInteraction,
   enableInteraction,
   showMainScreen,

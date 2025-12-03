@@ -21,9 +21,10 @@ function setupGameState({
 
   window.activeGame.tapMode = getTapMode();
   window.activeGame.lastPlacedColor = 'white';
-  if (!progress[mode].started) {
-    progress[mode].started = true;
-    persistProgress();
+  const progressBucket = progress?.[mode];
+  if (progressBucket && !progressBucket.started) {
+    progressBucket.started = true;
+    persistProgress?.();
   }
   window.activeGame.sequenceHistory = [];
   window.activeGame.nextHintIndex = 0;
@@ -32,36 +33,39 @@ function setupGameState({
   setLastTap(0);
   setLastStoneTap({ time: 0, target: null });
 
-  const level = progress[mode].level;
-  const levelConfig = gameState.levels[level - 1] || gameState.levels[0];
-  const currentLevel = progress[mode].level;
-  gameState.currentLevel = currentLevel || 1;
-  gameState.currentRound = progress[mode].round || 1;
-
   const plannedPuzzle = nextPuzzleSuggestion;
-  setNextPuzzleSuggestion(null);
+  setNextPuzzleSuggestion?.(null);
   const playerLevel = difficultyState.level || 1;
   renderSkillRating(difficultyState.rating);
   const resolvedBoardSize =
     plannedPuzzle?.boardSize ?? getBoardSizeForLevel(playerLevel);
 
-  document.getElementById(
-    'levelText'
-  ).textContent = `Level ${gameState.currentLevel}`;
-  document.getElementById(
-    'roundText'
-  ).textContent = `Round ${gameState.currentRound}/${gameState.totalRounds}`;
+  const levelTextEl = document.getElementById('levelText');
+  const roundTextEl = document.getElementById('roundText');
+  if (levelTextEl) {
+    const boardLabel = resolvedBoardSize
+      ? `${resolvedBoardSize}x${resolvedBoardSize} board`
+      : '';
+    levelTextEl.textContent = boardLabel;
+  }
+  if (roundTextEl) {
+    roundTextEl.textContent = plannedPuzzle?.stoneCount
+      ? `${plannedPuzzle.stoneCount} stones`
+      : '';
+  }
 
   updateModeIndicator(mode);
   const TIME_PER_STONE = 7;
   const stoneCount = Math.max(
     MIN_STONES,
-    plannedPuzzle?.stoneCount ?? levelConfig.stones
+    plannedPuzzle?.stoneCount ?? MIN_STONES
   );
+  const baseBoardSize =
+    resolvedBoardSize || getBoardSizeForLevel(playerLevel) || 5;
   const config = {
     intervalSpeed: MODE_INTERVAL_SPEED[mode] ?? 40,
     stoneCount,
-    size: Math.max(2, (resolvedBoardSize || levelConfig.boardSize) - 1),
+    size: Math.max(2, baseBoardSize - 1),
     time: stoneCount * TIME_PER_STONE,
   };
 
@@ -70,8 +74,7 @@ function setupGameState({
     stoneCount: config.stoneCount,
     boardSize: boardDimension,
   };
-  window.activeGame.startingLevel = gameState.currentLevel || 1;
-  window.activeGame.startingRound = gameState.currentRound || 1;
+  window.activeGame.startingLevel = playerLevel || 1;
   window.activeGame.startedAt = Date.now();
   window.activeGame.timedOut = false;
   window.activeGame.timerEndTime = null;

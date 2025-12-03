@@ -428,8 +428,6 @@ function createDifficultyOutcomeRecorder({
   logSkillRatingDebug,
   writeSkillDebug,
   setNextPuzzleSuggestion,
-  getProgress,
-  gameState,
   currentMode,
   activeGame,
 }) {
@@ -451,11 +449,7 @@ function createDifficultyOutcomeRecorder({
         ? timedOutOverride
         : Boolean(activeGame?.timedOut);
     const expectedTime = calculateExpectedTimeFn(stoneCountUsed, boardSizeUsed);
-    const gameplayLevel =
-      activeGame?.startingLevel ||
-      getProgress?.()?.[currentMode]?.level ||
-      gameState?.currentLevel ||
-      1;
+    const gameplayLevel = difficultyState.level || 1;
     const allowRatingChange = true;
     const safeActualTime = Math.max(0.001, actualSeconds);
     const playerSkipped = Boolean(activeGame?.playerSkipped);

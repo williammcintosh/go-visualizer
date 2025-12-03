@@ -56,7 +56,6 @@ import { createLevelSelectController } from './levelSelect.js';
 import {
   clearMarkers,
   resetBoardUI,
-  resetLevelUI,
   disableInteraction,
   enableInteraction,
   showMainScreen,
@@ -96,8 +95,8 @@ const tutorialController = createTutorialController();
 let tapMode = loadTapMode();
 
 const DEFAULT_PROGRESS = {
-  position: { level: 1, round: 1, started: false },
-  sequence: { level: 1, round: 1, started: false },
+  position: { started: false },
+  sequence: { started: false },
 };
 const MODE_INTERVAL_SPEED = {
   position: 40,
@@ -174,32 +173,10 @@ renderSkillRatingAll(difficultyState.rating, difficultyState?.rating);
 function normalizeProgress(progress = {}) {
   return {
     position: {
-      level:
-        progress.position?.level ??
-        progress.easy?.level ??
-        DEFAULT_PROGRESS.position.level,
-      round:
-        progress.position?.round ??
-        progress.easy?.round ??
-        DEFAULT_PROGRESS.position.round,
-      started:
-        progress.position?.started ??
-        progress.easy?.started ??
-        DEFAULT_PROGRESS.position.started,
+      started: Boolean(progress.position?.started ?? progress.easy?.started),
     },
     sequence: {
-      level:
-        progress.sequence?.level ??
-        progress.hard?.level ??
-        DEFAULT_PROGRESS.sequence.level,
-      round:
-        progress.sequence?.round ??
-        progress.hard?.round ??
-        DEFAULT_PROGRESS.sequence.round,
-      started:
-        progress.sequence?.started ??
-        progress.hard?.started ??
-        DEFAULT_PROGRESS.sequence.started,
+      started: Boolean(progress.sequence?.started ?? progress.hard?.started),
     },
   };
 }
@@ -224,37 +201,15 @@ window.SCORE_AWARD_PAUSE = SCORE_AWARD_PAUSE;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 window.delay = delay;
 
-// ---------- Dynamic Level Generation ----------
-const gameState = {
-  currentLevel: 1,
-  currentRound: 1,
-  totalRounds: 10,
-  levels: [],
-};
+// ---------- Game State ----------
+const gameState = { score: 0 };
 window.gameState = gameState;
-gameState.score = gameState.score || 0;
-
-const base = { stones: 5, board: 4, time: 40 };
-
-for (let i = 1; i <= 50; i++) {
-  const boardSize = base.board + Math.floor((i - 1) / 5);
-  const stones = base.stones + (i - 1);
-  const time = Math.max(20, base.time - (i - 1) * 3);
-  gameState.levels.push({
-    level: i,
-    stones,
-    boardSize,
-    time,
-    rounds: 10,
-  });
-}
 
 function persistProgress() {
   localStorage.setItem(
     'goVizProgress',
     JSON.stringify({
       progress: window.progress,
-      round: gameState.currentRound,
       score: gameState.score,
     })
   );
@@ -332,7 +287,7 @@ function updateModeStatuses() {
     if (!el) return;
     const progress = window.progress[mode];
     if (progress?.started) {
-      el.textContent = `Level ${progress.level} • Round ${progress.round}`;
+      el.textContent = 'In progress';
     } else {
       el.textContent = MODE_TAGLINES[mode];
     }
@@ -350,7 +305,12 @@ function updateModeIndicator(mode) {
 
 // ---------- Save State ----------
 // Load saved progress if it exists
-const saved = JSON.parse(localStorage.getItem('goVizProgress') || 'null');
+let saved = null;
+try {
+  saved = JSON.parse(localStorage.getItem('goVizProgress') || 'null');
+} catch (_err) {
+  saved = null;
+}
 const continueBtn = document.getElementById('continueBtn');
 const startBtn = document.getElementById('startBtn');
 const confirmModal = document.getElementById('confirmModal');
@@ -381,10 +341,9 @@ if (document.readyState === 'loading') {
   initDoubleTapListeners();
 }
 
-if (saved) {
+if (saved && typeof saved === 'object') {
   window.progress = normalizeProgress(saved.progress);
-  gameState.currentRound = saved.round || 1;
-  gameState.score = saved.score || 0; // restore saved score or default to 0
+  gameState.score = Number(saved.score) || 0; // restore saved score or default to 0
 
   // update the score display on screen
   if (scoreElement) {
@@ -511,7 +470,6 @@ syncTapModeInputs();
 // ---------- Button Listeners ----------
 const nextBtn = document.getElementById('nextBtn');
 const homeBtn2 = document.getElementById('homeBtn2');
-const levelOkBtn = document.getElementById('levelOkBtn');
 
 homeBtn2.addEventListener('click', () => {
   showHomeScreen({
@@ -541,10 +499,6 @@ nextBtn.onclick = async () => {
     documentRoot: document,
     startGame,
   });
-};
-
-levelOkBtn.onclick = () => {
-  resetLevelUI(nextBtn, levelOkBtn);
 };
 
 // ---------- Main Game ----------
@@ -762,11 +716,11 @@ async function startGame(mode) {
     minStones: MIN_STONES,
     config,
     boardDimension,
-    skillRatingEl,
-    MAX_SPEED_BONUS_THRESHOLD,
-    calculateSpeedBonusFn: calculateSpeedBonus,
-    logSkillRatingDebug,
-    writeSkillDebug,
+  skillRatingEl,
+  MAX_SPEED_BONUS_THRESHOLD,
+  calculateSpeedBonusFn: calculateSpeedBonus,
+  logSkillRatingDebug,
+  writeSkillDebug,
     setNextPuzzleSuggestion: (next) => {
       const selected = levelSelectController?.getSelection?.();
       if (selected) {
@@ -778,8 +732,6 @@ async function startGame(mode) {
       }
       nextPuzzleSuggestion = next;
     },
-    getProgress: () => window.progress,
-    gameState,
     currentMode,
     activeGame: window.activeGame,
   });
