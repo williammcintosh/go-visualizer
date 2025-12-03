@@ -36,6 +36,11 @@ body {
   overflow-y: auto;
 }
 
+html.no-scroll,
+body.no-scroll {
+  overflow: hidden !important;
+}
+
 /* The whole game area is centered and doesn’t resize */
 .game-wrapper {
   position: relative;
@@ -1300,6 +1305,7 @@ button:not(.bonus-button):not(#checkBtn):disabled {
 
   .game-wrapper {
     margin: 0 auto;
+    padding-top: 20px;
   }
 
   #board {

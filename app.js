@@ -111,6 +111,12 @@ const MODE_ICONS = {
   sequence: 'images/sequence_small.png',
 };
 
+function setScrollLock(isLocked) {
+  const method = isLocked ? 'add' : 'remove';
+  document.documentElement.classList[method]('no-scroll');
+  document.body.classList[method]('no-scroll');
+}
+
 const timerUI = createTimerUI();
 setupInput({
   TAP_MODE_KEY,
@@ -241,15 +247,44 @@ function emptyChallengeAttempts() {
   return { position: {}, sequence: {} };
 }
 
+function normalizePlayerProgressShape(rawProgress) {
+  const normalized = emptyPlayerProgress();
+  ['position', 'sequence'].forEach((mode) => {
+    const bucket = rawProgress?.[mode];
+    if (!bucket || typeof bucket !== 'object') {
+      normalized[mode] = {};
+      return;
+    }
+    normalized[mode] = Object.entries(bucket).reduce((perBoard, [boardKey, value]) => {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const perStone = Object.entries(value).reduce((stones, [stoneKey, stoneValue]) => {
+          const parsed = Number(stoneValue);
+          if (Number.isFinite(parsed)) {
+            stones[stoneKey] = parsed;
+          }
+          return stones;
+        }, {});
+        if (Object.keys(perStone).length) {
+          perBoard[boardKey] = perStone;
+        }
+      } else {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+          perBoard[boardKey] = { [MIN_STONES]: parsed };
+        }
+      }
+      return perBoard;
+    }, {});
+  });
+  return normalized;
+}
+
 function loadPlayerProgress() {
   try {
     const stored = localStorage.getItem(PLAYER_PROGRESS_KEY);
     const parsed = stored ? JSON.parse(stored) : null;
     if (parsed && typeof parsed === 'object') {
-      return {
-        position: parsed.position || {},
-        sequence: parsed.sequence || {},
-      };
+      return normalizePlayerProgressShape(parsed);
     }
   } catch (err) {
     console.warn('Failed to load player progress', err);
@@ -292,8 +327,15 @@ function saveChallengeAttempts(attempts) {
 
 let playerProgress = loadPlayerProgress();
 let challengeAttempts = loadChallengeAttempts();
-window.incrementPlayerProgress = (mode, boardKey, total) =>
-  incrementPlayerProgress(playerProgress, mode, boardKey, total, savePlayerProgress);
+window.incrementPlayerProgress = (mode, boardKey, stoneCount, total) =>
+  incrementPlayerProgress(
+    playerProgress,
+    mode,
+    boardKey,
+    stoneCount,
+    total,
+    savePlayerProgress
+  );
 
 function updateModeStatuses() {
   Object.keys(MODE_TAGLINES).forEach((mode) => {
@@ -508,6 +550,7 @@ homeBtn2.addEventListener('click', () => {
     },
   });
   levelSelectController?.hide();
+  setScrollLock(false);
 });
 
 nextBtn.onclick = async () => {
@@ -526,6 +569,7 @@ nextBtn.onclick = async () => {
 
 // ---------- Main Game ----------
 async function startGame(mode) {
+  setScrollLock(true);
   showGoldBadge();
   showSkillBadge();
   const manualSelection = levelSelectController?.getSelection?.();

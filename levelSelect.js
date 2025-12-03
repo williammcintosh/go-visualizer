@@ -2,6 +2,8 @@ import { getPlayerProgressIndex } from './puzzle.js';
 import { launchConfetti } from './anim.js';
 
 const STORAGE_KEY = 'goVizLevelSelect';
+const TOTALS_CACHE_KEY = 'goVizBoardTotals';
+const TOTALS_CACHE_VERSION = 1;
 const MIN_STONES = 5;
 const STONE_INCREMENT = 10;
 const BOARD_UNLOCKS = {
@@ -65,6 +67,32 @@ function createLevelSelectController({
       localStorage.removeItem(STORAGE_KEY);
     } catch (_err) {
       /* no-op */
+    }
+  }
+
+  function loadCachedTotals() {
+    try {
+      const raw = localStorage.getItem(TOTALS_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.version !== TOTALS_CACHE_VERSION) return null;
+      if (parsed?.totals && typeof parsed.totals === 'object') {
+        return parsed.totals;
+      }
+    } catch (_err) {
+      /* ignore cache errors */
+    }
+    return null;
+  }
+
+  function saveCachedTotals(totals) {
+    try {
+      localStorage.setItem(
+        TOTALS_CACHE_KEY,
+        JSON.stringify({ version: TOTALS_CACHE_VERSION, totals })
+      );
+    } catch (_err) {
+      /* ignore cache errors */
     }
   }
 
@@ -408,8 +436,25 @@ function createLevelSelectController({
 
   async function ensureTotals() {
     if (state.totals) return state.totals;
+    const cached = loadCachedTotals();
+    if (cached) {
+      state.totals = cached;
+      return cached;
+    }
     if (!window.GoMiniBoardLogic?.loadMiniBoards) return {};
     const data = await window.GoMiniBoardLogic.loadMiniBoards();
+    const totals = computeTotals(data);
+    state.totals = totals;
+    saveCachedTotals(totals);
+    return totals;
+  }
+
+  function getRating() {
+    const value = Number(getSkillRating?.() ?? 0);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function computeTotals(data) {
     const totals = {};
     ['5x5', '6x6', '7x7'].forEach((key) => {
       const bucket = Array.isArray(data?.[key]) ? data[key] : [];
@@ -421,13 +466,7 @@ function createLevelSelectController({
       });
       totals[key] = perStone;
     });
-    state.totals = totals;
     return totals;
-  }
-
-  function getRating() {
-    const value = Number(getSkillRating?.() ?? 0);
-    return Number.isFinite(value) ? value : 0;
   }
 
   function buildScreen() {
@@ -577,6 +616,7 @@ function createLevelSelectController({
         getPlayerProgress?.() ?? {},
         state.mode,
         boardKey,
+        stoneCount,
         total
       );
       const displayProgress = total ? Math.min(total, progress) : progress;
@@ -704,6 +744,7 @@ function createLevelSelectController({
           getPlayerProgress?.() ?? {},
           currentMode,
           boardKey,
+          stoneCount,
           total
         );
     const challengeNumber = Math.max(1, Math.min(total || challengeIndex + 1, challengeIndex + 1));

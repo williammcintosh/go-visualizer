@@ -1,18 +1,59 @@
+const MIN_STONES = 5;
 const lastGameByBoard = {};
 
-function getPlayerProgressIndex(playerProgress, mode, boardKey, total) {
+function getStoneKey(stoneCount) {
+  const parsed = Number(stoneCount);
+  return Number.isFinite(parsed) ? parsed : MIN_STONES;
+}
+
+function getBoardStoneBucket(bucket, boardKey) {
+  const existing = bucket?.[boardKey];
+  if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+    return existing;
+  }
+  if (Number.isFinite(existing)) {
+    return { [MIN_STONES]: existing };
+  }
+  return {};
+}
+
+function getPlayerProgressIndex(playerProgress, mode, boardKey, stoneCount, total) {
   const bucket = playerProgress?.[mode] || {};
-  const current = Number(bucket[boardKey]);
-  const parsed = Number.isFinite(current) ? current : 0;
+  const stoneKey = getStoneKey(stoneCount);
+  const boardBucket = getBoardStoneBucket(bucket, boardKey);
+  const legacyValue = Number(bucket?.[boardKey]);
+  const rawValue =
+    Number.isFinite(boardBucket[stoneKey])
+      ? boardBucket[stoneKey]
+      : stoneKey === MIN_STONES && Number.isFinite(legacyValue)
+      ? legacyValue
+      : 0;
+  const parsed = Number.isFinite(rawValue) ? rawValue : 0;
   return total > 0 ? ((parsed % total) + total) % total : 0;
 }
 
-function incrementPlayerProgress(playerProgress, mode, boardKey, total, savePlayerProgress) {
+function incrementPlayerProgress(
+  playerProgress,
+  mode,
+  boardKey,
+  stoneCount,
+  total,
+  savePlayerProgress
+) {
   if (total <= 0) return;
   const bucket = playerProgress[mode] || {};
-  const currentIndex = getPlayerProgressIndex(playerProgress, mode, boardKey, total);
+  const stoneKey = getStoneKey(stoneCount);
+  const boardBucket = getBoardStoneBucket(bucket, boardKey);
+  const currentIndex = getPlayerProgressIndex(
+    playerProgress,
+    mode,
+    boardKey,
+    stoneKey,
+    total
+  );
   const nextIndex = (currentIndex + 1) % total;
-  bucket[boardKey] = nextIndex;
+  boardBucket[stoneKey] = nextIndex;
+  bucket[boardKey] = boardBucket;
   playerProgress[mode] = bucket;
   if (typeof savePlayerProgress === 'function') {
     savePlayerProgress(playerProgress);
@@ -95,7 +136,13 @@ async function selectGameForLevel(targetSize, stoneCount, mode, playerProgress) 
     );
   }
   const safeMode = mode === 'sequence' ? 'sequence' : 'position';
-  const index = getPlayerProgressIndex(playerProgress, safeMode, boardKey, pool.length);
+  const index = getPlayerProgressIndex(
+    playerProgress,
+    safeMode,
+    boardKey,
+    targetCount,
+    pool.length
+  );
   const selected = pool[index];
   lastGameByBoard[boardKey] = selected?.game_id;
   return {

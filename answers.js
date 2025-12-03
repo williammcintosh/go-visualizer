@@ -193,7 +193,7 @@ function checkAnswers({
         ? 'sequence'
         : 'position';
     if (boardKey) {
-      window.incrementPlayerProgress(modeKey, boardKey, total);
+      window.incrementPlayerProgress(modeKey, boardKey, stoneCount, total);
     }
   }
 
