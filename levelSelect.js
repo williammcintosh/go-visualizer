@@ -2,20 +2,135 @@ import { getPlayerProgressIndex } from './puzzle.js';
 import { launchConfetti } from './anim.js';
 
 const STORAGE_KEY = 'goVizLevelSelect';
-const TOTALS_CACHE_KEY = 'goVizBoardTotals';
-const TOTALS_CACHE_VERSION = 1;
+const UNLOCK_CACHE_KEY = 'goVizUnlockCache';
 const MIN_STONES = 5;
-const STONE_INCREMENT = 10;
-const BOARD_UNLOCKS = {
-  5: 0,
-  6: 100,
-  7: 1000,
-};
 const BOARD_IMAGES = {
   5: 'images/board_5x5.png',
   6: 'images/board_6x6.png',
   7: 'images/board_7x7.png',
 };
+let UNLOCKS = {};
+let unlocksPromise = null;
+const BOARD_MIN_STONES_CACHE = {};
+
+function loadUnlocksViaXHR(url) {
+  return new Promise((resolve) => {
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === 4) {
+          try {
+            const parsed = JSON.parse(xhr.responseText || '{}');
+            UNLOCKS = parsed?.unlockCosts || {};
+          } catch (err) {
+            console.error('Failed to parse unlocks.json via XHR', err);
+            UNLOCKS = {};
+          }
+          resolve(UNLOCKS);
+        }
+      };
+      xhr.onerror = () => {
+        UNLOCKS = {};
+        resolve(UNLOCKS);
+      };
+      xhr.send();
+    } catch (err) {
+      console.error('XHR fallback for unlocks.json failed', err);
+      UNLOCKS = {};
+      resolve(UNLOCKS);
+    }
+  });
+}
+
+function loadUnlocksFromCache() {
+  try {
+    const raw = localStorage.getItem(UNLOCK_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
+    }
+  } catch (_err) {
+    /* ignore */
+  }
+  return null;
+}
+
+function saveUnlocksToCache(data) {
+  try {
+    localStorage.setItem(UNLOCK_CACHE_KEY, JSON.stringify(data));
+  } catch (_err) {
+    /* ignore */
+  }
+}
+
+function ensureUnlocks() {
+  if (unlocksPromise) return unlocksPromise;
+  const unlockUrl =
+    typeof import.meta !== 'undefined'
+      ? new URL('./unlocks.json', import.meta.url).toString()
+      : 'unlocks.json';
+  const cached = loadUnlocksFromCache();
+  if (cached) {
+    UNLOCKS = cached;
+  }
+  unlocksPromise = fetch(unlockUrl)
+    .catch(() => fetch('unlocks.json'))
+    .then((res) => {
+      if (!res || !res.ok) throw new Error(`Fetch failed for ${unlockUrl}`);
+      return res.json();
+    })
+    .then((data) => {
+      UNLOCKS = data?.unlockCosts || {};
+      if (!Object.keys(UNLOCKS).length && cached) {
+        UNLOCKS = cached;
+        return UNLOCKS;
+      }
+      if (!Object.keys(UNLOCKS).length) {
+        console.warn('Unlock data empty after fetch; check unlocks.json path.');
+      }
+      if (Object.keys(UNLOCKS).length) saveUnlocksToCache(UNLOCKS);
+      return UNLOCKS;
+    })
+    .catch((err) => {
+      console.error('Failed to load unlocks.json', err);
+      if (cached) {
+        UNLOCKS = cached;
+        return UNLOCKS;
+      }
+      return loadUnlocksViaXHR(unlockUrl).then(async (result) => {
+        let finalResult = result || {};
+        if (!Object.keys(finalResult).length && unlockUrl !== 'unlocks.json') {
+          finalResult = (await loadUnlocksViaXHR('unlocks.json')) || {};
+        }
+        if (!Object.keys(finalResult).length) {
+          try {
+            const sync = new XMLHttpRequest();
+            sync.open('GET', 'unlocks.json', false);
+            sync.send(null);
+            const parsed = JSON.parse(sync.responseText || '{}');
+            finalResult = parsed?.unlockCosts || {};
+          } catch (_err) {
+            /* ignore */
+          }
+        }
+        if (!Object.keys(finalResult).length && cached) {
+          UNLOCKS = cached;
+          return UNLOCKS;
+        }
+        if (Object.keys(finalResult).length) {
+          UNLOCKS = finalResult;
+          saveUnlocksToCache(finalResult);
+        }
+        UNLOCKS = finalResult;
+        return finalResult;
+      });
+    });
+  return unlocksPromise;
+}
+
+ensureUnlocks();
 
 function createLevelSelectController({
   introEl,
@@ -45,7 +160,8 @@ function createLevelSelectController({
       const mode = parsed.mode === 'sequence' ? 'sequence' : 'position';
       const boardSize = Number(parsed.boardSize);
       const stoneCount = Number(parsed.stoneCount);
-      if (!Number.isFinite(boardSize) || !Number.isFinite(stoneCount)) return null;
+      if (!Number.isFinite(boardSize) || !Number.isFinite(stoneCount))
+        return null;
       return { mode, boardSize, stoneCount };
     } catch (_err) {
       return null;
@@ -67,32 +183,6 @@ function createLevelSelectController({
       localStorage.removeItem(STORAGE_KEY);
     } catch (_err) {
       /* no-op */
-    }
-  }
-
-  function loadCachedTotals() {
-    try {
-      const raw = localStorage.getItem(TOTALS_CACHE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (parsed?.version !== TOTALS_CACHE_VERSION) return null;
-      if (parsed?.totals && typeof parsed.totals === 'object') {
-        return parsed.totals;
-      }
-    } catch (_err) {
-      /* ignore cache errors */
-    }
-    return null;
-  }
-
-  function saveCachedTotals(totals) {
-    try {
-      localStorage.setItem(
-        TOTALS_CACHE_KEY,
-        JSON.stringify({ version: TOTALS_CACHE_VERSION, totals })
-      );
-    } catch (_err) {
-      /* ignore cache errors */
     }
   }
 
@@ -218,7 +308,20 @@ function createLevelSelectController({
         width: 100%;
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 1rem;
+        padding-left: 0.5rem;
+        box-sizing: border-box;
+      }
+      .level-select__board-card .mode-content.level-select__board-content {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .level-select__card-row.mode-card--horizontal {
+        justify-content: center;
+        align-items: center;
       }
       .level-select__drawer {
         width: 100%;
@@ -377,6 +480,10 @@ function createLevelSelectController({
     document.body.appendChild(modal);
     state.modal = modal;
     state.modalText = modal.querySelector('#levelSelectModalText');
+    if (state.modalText) {
+      state.modalText.style.textAlign = 'center';
+      state.modalText.style.whiteSpace = 'pre-line';
+    }
     state.modalGoBtn = goBtn;
   }
 
@@ -394,7 +501,23 @@ function createLevelSelectController({
   function showModal(message, options = {}) {
     const { showGoNow = false, onGoNow = null } = options;
     ensureModal();
-    if (state.modalText) state.modalText.textContent = message;
+    if (state.modalText) {
+      state.modalText.innerHTML = '';
+      const [firstLine, ...rest] = String(message ?? '').split('\n');
+      const firstSpan = document.createElement('span');
+      firstSpan.textContent = firstLine;
+      firstSpan.style.fontWeight = 'bold';
+      firstSpan.style.fontSize = '1.15em';
+      state.modalText.appendChild(firstSpan);
+      rest.forEach((line) => {
+        state.modalText.appendChild(document.createElement('br'));
+        if (line === '') {
+          state.modalText.appendChild(document.createElement('br'));
+        } else {
+          state.modalText.appendChild(document.createTextNode(line));
+        }
+      });
+    }
     if (state.modalGoBtn) {
       state.modalGoBtn.style.display = showGoNow ? 'block' : 'none';
     }
@@ -420,53 +543,66 @@ function createLevelSelectController({
     return Number.isFinite(value) ? value : null;
   }
 
-  function getRequirement(boardSize, stoneCount = MIN_STONES) {
-    const base = BOARD_UNLOCKS[Number(boardSize)] ?? 0;
-    const extra = Math.max(0, (Number(stoneCount) || MIN_STONES) - MIN_STONES) * STONE_INCREMENT;
-    return base + extra;
+  function getTotalsForBoard(boardSize) {
+    return state.totals?.[String(boardSize)] || {};
+  }
+
+  function getBoardMinimumStoneCount(boardSize) {
+    const size = Number(boardSize);
+    if (!Number.isFinite(size)) return MIN_STONES;
+    if (BOARD_MIN_STONES_CACHE[size]) return BOARD_MIN_STONES_CACHE[size];
+    const stones = Object.keys(getTotalsForBoard(size))
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n));
+    const minStone = stones.length ? Math.min(...stones) : MIN_STONES;
+    BOARD_MIN_STONES_CACHE[size] = minStone;
+    return minStone;
+  }
+
+  function getRequirement(boardSize, stoneCount = null) {
+    const size = Number(boardSize);
+    const parsedStone = Number(stoneCount);
+    const hasStoneInput =
+      stoneCount !== null &&
+      stoneCount !== undefined &&
+      Number.isFinite(parsedStone);
+    const stones = hasStoneInput
+      ? parsedStone
+      : getBoardMinimumStoneCount(size);
+    const key = `${size}-${stones}`;
+    const raw = UNLOCKS ? UNLOCKS[key] : undefined;
+    const requirement =
+      typeof raw === 'string' ? Number(raw.trim()) : Number(raw);
+    return Number.isFinite(requirement) ? requirement : null;
   }
 
   function isBoardUnlocked(boardSize, rating) {
-    return rating >= getRequirement(boardSize, MIN_STONES);
+    const requirement = getRequirement(boardSize);
+    return Number.isFinite(requirement) && rating >= requirement;
   }
 
   function isStoneUnlocked(boardSize, stoneCount, rating) {
-    return rating >= getRequirement(boardSize, stoneCount);
+    const requirement = getRequirement(boardSize, stoneCount);
+    return Number.isFinite(requirement) && rating >= requirement;
   }
 
   async function ensureTotals() {
     if (state.totals) return state.totals;
-    const cached = loadCachedTotals();
-    if (cached) {
-      state.totals = cached;
-      return cached;
+    try {
+      const res = await fetch('games/game_counts.json');
+      const data = await res.json();
+      state.totals = data || {};
+      return state.totals;
+    } catch (err) {
+      console.error('Failed to load game counts', err);
+      state.totals = {};
+      return state.totals;
     }
-    if (!window.GoMiniBoardLogic?.loadMiniBoards) return {};
-    const data = await window.GoMiniBoardLogic.loadMiniBoards();
-    const totals = computeTotals(data);
-    state.totals = totals;
-    saveCachedTotals(totals);
-    return totals;
   }
 
   function getRating() {
     const value = Number(getSkillRating?.() ?? 0);
     return Number.isFinite(value) ? value : 0;
-  }
-
-  function computeTotals(data) {
-    const totals = {};
-    ['5x5', '6x6', '7x7'].forEach((key) => {
-      const bucket = Array.isArray(data?.[key]) ? data[key] : [];
-      const perStone = {};
-      bucket.forEach((game) => {
-        const moves = Number(game?.num_moves);
-        if (!Number.isFinite(moves)) return;
-        perStone[moves] = (perStone[moves] || 0) + 1;
-      });
-      totals[key] = perStone;
-    });
-    return totals;
   }
 
   function buildScreen() {
@@ -513,7 +649,8 @@ function createLevelSelectController({
     setMode?.(state.mode);
   }
 
-  function renderBoards() {
+  async function renderBoards() {
+    await ensureUnlocks();
     const grid = state.screen?.querySelector('#boardOptions');
     if (!grid) return;
     const rating = getRating();
@@ -522,7 +659,8 @@ function createLevelSelectController({
       const boardKey = `${size}x${size}`;
       const locked = !isBoardUnlocked(size, rating);
       const card = document.createElement('div');
-      card.className = 'mode-card mode-card--horizontal level-select__board-card';
+      card.className =
+        'mode-card mode-card--horizontal level-select__board-card';
       if (locked) card.classList.add('locked');
       if (state.selection?.boardSize === size) card.classList.add('selected');
 
@@ -553,15 +691,25 @@ function createLevelSelectController({
       }
       const status = document.createElement('p');
       status.className = 'mode-status level-select__status';
-      status.textContent = locked ? `Needs skill rating ${requirement}` : 'Unlocked';
+      status.textContent = locked
+        ? Number.isFinite(requirement)
+          ? `Needs skill rating ${requirement}`
+          : 'Locked'
+        : 'Unlocked';
 
       btn.onclick = () => {
         if (locked) {
-          showModal(`must have a skill rating of ${requirement} to unlock`);
+          const minStone = getBoardMinimumStoneCount(size);
+          const message = Number.isFinite(requirement)
+            ? `${boardKey} board with ${minStone} stones\nNeed skill rating ${requirement} to unlock`
+            : `${boardKey} board with ${minStone} stones\nThis board is locked`;
+          showModal(message);
           return;
         }
         const isOpen = state.selection?.boardSize === size;
-        state.selection = isOpen ? { ...state.selection, boardSize: null } : { ...state.selection, boardSize: size, boardKey };
+        state.selection = isOpen
+          ? { ...state.selection, boardSize: null }
+          : { ...state.selection, boardSize: size, boardKey };
         renderBoards();
       };
 
@@ -596,7 +744,7 @@ function createLevelSelectController({
     if (!container) return;
     container.innerHTML = '';
     const boardKey = `${boardSize}x${boardSize}`;
-    const totals = state.totals?.[boardKey] || {};
+    const totals = getTotalsForBoard(boardSize);
     const stones = Object.keys(totals)
       .map((n) => Number(n))
       .filter((n) => Number.isFinite(n))
@@ -604,14 +752,17 @@ function createLevelSelectController({
     const rating = getRating();
     const header = document.createElement('h4');
     header.className = 'level-select__stone-header';
-    header.textContent = stones.length ? 'Choose your stone target:' : 'No puzzles available.';
+    header.textContent = stones.length
+      ? 'Choose your stone target:'
+      : 'No puzzles available.';
     container.appendChild(header);
     const grid = document.createElement('div');
     grid.className = 'level-select__stone-grid';
     container.appendChild(grid);
     stones.forEach((stoneCount) => {
       const total = totals[stoneCount] || 0;
-      const locked = !isStoneUnlocked(boardSize, stoneCount, rating);
+      const requirement = getRequirement(boardSize, stoneCount);
+      const locked = !Number.isFinite(requirement) || rating < requirement;
       const progress = getPlayerProgressIndex(
         getPlayerProgress?.() ?? {},
         state.mode,
@@ -637,9 +788,11 @@ function createLevelSelectController({
       }
       btn.textContent = `${stoneCount} stones`;
       btn.onclick = () => {
-        const requirement = getRequirement(boardSize, stoneCount);
         if (locked) {
-          showModal(`must have a skill rating of ${requirement} to unlock`);
+          const message = Number.isFinite(requirement)
+            ? `${boardKey} board with ${stoneCount} stones\n\nNeed skill rating ${requirement} to unlock`
+            : `${boardKey} board with ${stoneCount} stones\n\nThis level is locked`;
+          showModal(message);
           return;
         }
         startWithSelection({ boardSize, stoneCount, mode: state.mode });
@@ -695,17 +848,24 @@ function createLevelSelectController({
     difficultyEl?.classList.remove('active');
     introEl?.classList.remove('active');
     screen?.classList.add('active');
-    await ensureTotals();
-    renderBoards();
+    await Promise.all([ensureUnlocks(), ensureTotals()]);
+    await renderBoards();
   }
 
   async function resumeLastSelection() {
+    await ensureUnlocks();
     const selection = state.selection;
     if (!selection) return false;
-    const requirement = getRequirement(selection.boardSize, selection.stoneCount);
+    const requirement = getRequirement(
+      selection.boardSize,
+      selection.stoneCount
+    );
     const rating = getRating();
-    if (rating < requirement) {
-      showModal(`must have a skill rating of ${requirement} to unlock`);
+    if (!Number.isFinite(requirement) || rating < requirement) {
+      const message = Number.isFinite(requirement)
+        ? `must have a skill rating of ${requirement} to unlock`
+        : 'This selection is locked';
+      showModal(message);
       return false;
     }
     await ensureTotals();
@@ -726,14 +886,13 @@ function createLevelSelectController({
       parseBoardSize(activeGame?.boardKey) ||
       Number(state.selection?.boardSize) ||
       5;
-    const boardKey = `${boardSize}x${boardSize}`;
     const stoneCount =
       Number(activeGame?.challengeStoneCount) ||
       Number(activeGame?.puzzleConfig?.stoneCount) ||
       Number(state.selection?.stoneCount) ||
       MIN_STONES;
     const totalFromActive = Number(activeGame?.challengePoolSize);
-    const totals = state.totals?.[boardKey] || {};
+    const totals = getTotalsForBoard(boardSize);
     const total =
       (Number.isFinite(totalFromActive) && totalFromActive > 0
         ? totalFromActive
@@ -743,14 +902,21 @@ function createLevelSelectController({
       : getPlayerProgressIndex(
           getPlayerProgress?.() ?? {},
           currentMode,
-          boardKey,
+          `${boardSize}x${boardSize}`,
           stoneCount,
           total
         );
-    const challengeNumber = Math.max(1, Math.min(total || challengeIndex + 1, challengeIndex + 1));
+    const challengeNumber = Math.max(
+      1,
+      Math.min(total || challengeIndex + 1, challengeIndex + 1)
+    );
     const attemptsRaw = Number(activeGame?.challengeAttempts);
-    const attempts = Number.isFinite(attemptsRaw) ? Math.max(0, attemptsRaw - 1) : 0;
-    const header = `${boardKey} board • ${stoneCount} stones<br>challenge ${challengeNumber}/${total || '?'} • attempts ${attempts}`;
+    const attempts = Number.isFinite(attemptsRaw)
+      ? Math.max(0, attemptsRaw - 1)
+      : 0;
+    const header = `${boardSize}x${boardSize} board • ${stoneCount} stones<br>challenge ${challengeNumber}/${
+      total || '?'
+    } • attempts ${attempts}`;
     levelText.innerHTML = header;
     roundText.textContent = '';
   }
@@ -760,19 +926,29 @@ function createLevelSelectController({
     const unlocks = [];
     [5, 6, 7].forEach((size) => {
       const req = getRequirement(size);
-      if (ratingBefore < req && ratingAfter >= req) {
+      if (Number.isFinite(req) && ratingBefore < req && ratingAfter >= req) {
         unlocks.push({ type: 'board', requirement: req, size });
       }
     });
-    Object.entries(state.totals || {}).forEach(([boardKey, byStone]) => {
-      const size = parseBoardSize(boardKey);
+    Object.entries(state.totals || {}).forEach(([boardDigit, byStone]) => {
+      const size = Number(boardDigit);
+      if (!Number.isFinite(size)) return;
       Object.keys(byStone || {})
         .map((k) => Number(k))
         .filter((n) => Number.isFinite(n))
         .forEach((stoneCount) => {
           const req = getRequirement(size, stoneCount);
-          if (ratingBefore < req && ratingAfter >= req) {
-            unlocks.push({ type: 'stone', requirement: req, stones: stoneCount, size });
+          if (
+            Number.isFinite(req) &&
+            ratingBefore < req &&
+            ratingAfter >= req
+          ) {
+            unlocks.push({
+              type: 'stone',
+              requirement: req,
+              stones: stoneCount,
+              size,
+            });
           }
         });
     });
@@ -783,7 +959,7 @@ function createLevelSelectController({
 
   function handleRatingChange({ ratingBefore, ratingAfter }) {
     if (ratingAfter <= ratingBefore) return;
-    ensureTotals().then(() => {
+    Promise.all([ensureUnlocks(), ensureTotals()]).then(() => {
       renderBoards();
       const unlocked = detectUnlocks(ratingBefore, ratingAfter);
       if (!unlocked) return;
@@ -802,20 +978,25 @@ function createLevelSelectController({
         });
         launchConfetti();
       } else if (unlocked.type === 'stone') {
-        showModal(`${unlocked.stones} stones unlocked!`, {
-          showGoNow: true,
-          onGoNow: () => {
-            const size = unlocked.size || parseBoardSize(state.selection?.boardKey) || 5;
-            state.selection = {
-              mode: state.mode,
-              boardSize: size,
-              boardKey: `${size}x${size}`,
-              stoneCount: unlocked.stones,
-            };
-            renderBoards();
-            startWithSelection(state.selection);
-          },
-        });
+        const size =
+          unlocked.size || parseBoardSize(state.selection?.boardKey) || 5;
+        const boardLabel = `${size}x${size} board`;
+        showModal(
+          `Level unlocked!\n\n${boardLabel} with ${unlocked.stones} stones`,
+          {
+            showGoNow: true,
+            onGoNow: () => {
+              state.selection = {
+                mode: state.mode,
+                boardSize: size,
+                boardKey: `${size}x${size}`,
+                stoneCount: unlocked.stones,
+              };
+              renderBoards();
+              startWithSelection(state.selection);
+            },
+          }
+        );
         launchConfetti();
       }
     });

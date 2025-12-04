@@ -8,7 +8,7 @@ function initAddTimeBonus({
   tutorialController,
   showTimerToast,
   flashGoldWarning,
-  BONUS_COST,
+  getBonusCost,
   getIsRefilling,
   setIsRefilling,
   getTimeLeft,
@@ -20,7 +20,8 @@ function initAddTimeBonus({
   return function addTimeHandler() {
     const gameState = getGameState?.();
     const activeGame = getActiveGame?.();
-    const cannotAfford = (gameState?.gold ?? 0) < BONUS_COST;
+    const cost = getBonusCost?.() ?? 0;
+    const cannotAfford = (gameState?.gold ?? 0) < cost;
     if (
       addTimeBonus.classList.contains('disabled') ||
       isFeedbackVisible() ||
@@ -38,7 +39,7 @@ function initAddTimeBonus({
     setIsRefilling(true);
     addTimeBonus.classList.add('disabled');
     updateBonusAvailability();
-    deductGold(BONUS_COST, addTimeBonus);
+    deductGold(cost, addTimeBonus);
     tutorialController.onAddTimeUsed();
     showTimerToast('Time bonus!');
 
@@ -130,7 +131,7 @@ function initEyeGlassBonus({
   eyeGlassBonus,
   board,
   gameState,
-  BONUS_COST,
+  getBonusCost,
   flashGoldWarning,
   getCanUseEyeGlass,
   setCanUseEyeGlass,
@@ -142,7 +143,8 @@ function initEyeGlassBonus({
 }) {
   return function eyeGlassHandler() {
     const activeGame = getActiveGame?.();
-    const cannotAfford = (gameState?.gold ?? 0) < BONUS_COST;
+    const cost = getBonusCost?.() ?? 0;
+    const cannotAfford = (gameState?.gold ?? 0) < cost;
     if (cannotAfford) {
       flashGoldWarning();
       return;
@@ -156,7 +158,7 @@ function initEyeGlassBonus({
     if (activeGame) {
       activeGame.usedAssistBonus = true;
     }
-    deductGold(BONUS_COST, eyeGlassBonus);
+    deductGold(cost, eyeGlassBonus);
     eyeGlassBonus.classList.add('disabled');
 
     const moves = activeGame?.gameSnapshot?.moves ?? [];
@@ -200,7 +202,7 @@ function initBonusFlow({
   tutorialController,
   showTimerToast,
   flashGoldWarning,
-  BONUS_COST,
+  getBonusCost,
   getIsRefilling,
   setIsRefilling,
   getTimeLeft,
@@ -222,7 +224,7 @@ function initBonusFlow({
     tutorialController,
     showTimerToast,
     flashGoldWarning,
-    BONUS_COST,
+    getBonusCost,
     getIsRefilling,
     setIsRefilling,
     getTimeLeft,
@@ -236,7 +238,7 @@ function initBonusFlow({
     eyeGlassBonus,
     board,
     gameState,
-    BONUS_COST,
+    getBonusCost,
     flashGoldWarning,
     getCanUseEyeGlass,
     setCanUseEyeGlass,

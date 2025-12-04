@@ -193,10 +193,24 @@ button.bonus-button .bonus-label {
 }
 
 button.bonus-button .bonus-cost {
-  font-size: 0.75rem;
-  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.8rem;
+  font-weight: 800;
   color: #0b360f;
   margin-left: auto;
+  line-height: 1.1;
+}
+
+.bonus-cost-icon {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+.bonus-cost-value {
+  display: block;
 }
 
 button.bonus-button:hover:not(.disabled) {

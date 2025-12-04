@@ -1,6 +1,9 @@
 const REACTION_TIME_BASE = 4000;
 const REACTION_TIME_SLOW = 10000;
 const SPEED_BONUS_MAX = 300;
+const TARGET_THREE_GAMES_TOTAL = 100;
+const TARGET_AVG_PER_GAME = TARGET_THREE_GAMES_TOTAL / 3;
+window.SPEED_BONUS_MAX = SPEED_BONUS_MAX;
 
 function getGoldAwardDuration(amount) {
   // Keep awards snappy even for large amounts
@@ -17,11 +20,39 @@ function calculateSpeedBonus(reactionTime = REACTION_TIME_SLOW) {
       1,
       Math.max(
         0,
-        (reactionTime - REACTION_TIME_BASE) /
-          (REACTION_TIME_SLOW - REACTION_TIME_BASE)
-      )
-    );
+      (reactionTime - REACTION_TIME_BASE) /
+        (REACTION_TIME_SLOW - REACTION_TIME_BASE)
+    )
+  );
   return Math.round(normalized * SPEED_BONUS_MAX);
+}
+
+function getRewardScale() {
+  const basePos = Number(window.POSITION_BONUS) || 0;
+  const baseColor = Number(window.COLOR_BONUS) || 0;
+  const baseSeq = Number(window.SEQUENCE_BONUS) || 0;
+  const baseSlowPos = basePos + baseColor;
+  const baseSlowSeq = baseSlowPos + baseSeq;
+  const baseValues = [baseSlowPos, baseSlowSeq].filter((v) => Number.isFinite(v));
+  const baseSlowAvg =
+    baseValues.reduce((a, b) => a + b, 0) / Math.max(1, baseValues.length);
+  const speedHalf = (Number(window.SPEED_BONUS_MAX) || SPEED_BONUS_MAX) / 2;
+  const currentMid = baseSlowAvg + speedHalf;
+  if (!currentMid || currentMid <= 0) return 1;
+  const scale = TARGET_AVG_PER_GAME / currentMid;
+  window.REWARD_SCALE = scale;
+  return scale;
+}
+
+function getStoneCountForRewards() {
+  const fromActive =
+    window.activeGame?.challengeStoneCount ??
+    window.activeGame?.puzzleConfig?.stoneCount;
+  const parsedActive = Number(fromActive);
+  if (Number.isFinite(parsedActive) && parsedActive > 0) return parsedActive;
+  const parsedWindow = Number(window.MIN_STONES);
+  if (Number.isFinite(parsedWindow) && parsedWindow > 0) return parsedWindow;
+  return 5;
 }
 
 function showGoldFloat(label, amount, duration = getGoldAwardDuration(amount)) {
@@ -107,19 +138,28 @@ async function addGold({
   sequenceOrderIssues = 0,
 } = {}) {
   if (!finalBoardCorrect) return;
+  const rewardScale = getRewardScale();
+  const stoneCount = getStoneCountForRewards();
+  const baselineStones = Number(window.MIN_STONES) || 5;
+  const stoneFactor = Math.max(1, stoneCount / Math.max(1, baselineStones));
+  const scaleValue = (value) =>
+    Math.max(0, Math.round(value * rewardScale * stoneFactor));
   const breakdown = [
-    { label: 'Correct positions', value: window.POSITION_BONUS },
-    { label: 'Correct colors', value: window.COLOR_BONUS },
+    { label: 'Correct positions', value: scaleValue(window.POSITION_BONUS) },
+    { label: 'Correct colors', value: scaleValue(window.COLOR_BONUS) },
   ];
   const speedBonus = calculateSpeedBonus(reactionTime);
   if (speedBonus) {
-    breakdown.push({ label: 'Speed bonus', value: speedBonus });
+    breakdown.push({ label: 'Speed bonus', value: scaleValue(speedBonus) });
     if (speedBonus > 0 && window.activeGame) {
       window.activeGame.maxSpeedBonusAchieved = true;
     }
   }
   if (window.currentMode === 'sequence' && sequenceOrderIssues === 0) {
-    breakdown.push({ label: 'Perfect sequence', value: window.SEQUENCE_BONUS });
+    breakdown.push({
+      label: 'Perfect sequence',
+      value: scaleValue(window.SEQUENCE_BONUS),
+    });
   }
   if (!breakdown.length) return;
 
@@ -224,7 +264,9 @@ function updateBonusAvailability() {
 
   if (!addTime || !eyeGlass) return;
 
-  const canAffordBonus = window.gameState.gold >= window.BONUS_COST;
+  const cost =
+    typeof window.getBonusCost === 'function' ? window.getBonusCost() : window.BONUS_COST;
+  const canAffordBonus = window.gameState.gold >= (Number(cost) || 0);
   const timerIsRunning = Boolean(window.activeGame?.timer);
   const feedbackActive = isFeedbackVisible();
 

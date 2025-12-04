@@ -111,11 +111,40 @@ const MODE_ICONS = {
   sequence: 'images/sequence_small.png',
 };
 
+const BONUS_COST_PER_STONE = 20;
+
 function setScrollLock(isLocked) {
   const method = isLocked ? 'add' : 'remove';
   document.documentElement.classList[method]('no-scroll');
   document.body.classList[method]('no-scroll');
 }
+
+function getActiveStoneCount(fallbackConfig) {
+  const fromActive = Number(
+    window.activeGame?.challengeStoneCount ??
+      window.activeGame?.puzzleConfig?.stoneCount
+  );
+  if (Number.isFinite(fromActive) && fromActive > 0) return fromActive;
+  const fromConfig = Number(fallbackConfig?.stoneCount);
+  if (Number.isFinite(fromConfig) && fromConfig > 0) return fromConfig;
+  return MIN_STONES;
+}
+
+function getBonusCost(fallbackConfig) {
+  const stones = getActiveStoneCount(fallbackConfig);
+  return Math.max(0, Math.round(stones * BONUS_COST_PER_STONE));
+}
+
+function updateBonusCostDisplay(cost) {
+  document.querySelectorAll('.bonus-cost-value').forEach((el) => {
+    el.textContent = `-${cost}`;
+  });
+}
+
+const DEFAULT_BONUS_COST = MIN_STONES * BONUS_COST_PER_STONE;
+window.BONUS_COST = DEFAULT_BONUS_COST;
+window.getBonusCost = () => DEFAULT_BONUS_COST;
+updateBonusCostDisplay(DEFAULT_BONUS_COST);
 
 const timerUI = createTimerUI();
 setupInput({
@@ -204,14 +233,12 @@ function normalizeProgress(progress = {}) {
 window.progress = normalizeProgress(window.progress);
 const ANIM_DELAY = 600;
 const DEDUCT_TARGET_ID = 'goldValue';
-const BONUS_COST = 500;
-window.ANIM_DELAY = ANIM_DELAY;
-window.BONUS_COST = BONUS_COST;
 const POSITION_BONUS = 200;
 const COLOR_BONUS = 200;
 const SEQUENCE_BONUS = 250;
 const GOLD_STEP_DELAY = 2; // base ms between gold increments
 const GOLD_AWARD_PAUSE = 90;
+window.ANIM_DELAY = ANIM_DELAY;
 window.POSITION_BONUS = POSITION_BONUS;
 window.COLOR_BONUS = COLOR_BONUS;
 window.SEQUENCE_BONUS = SEQUENCE_BONUS;
@@ -631,6 +658,9 @@ async function startGame(mode) {
   const setCheckButtonShowTimeout = (v) => {
     checkButtonShowTimeout = v;
   };
+  const resolveBonusCost = () => getBonusCost(config);
+  updateBonusCostDisplay(resolveBonusCost());
+  window.getBonusCost = resolveBonusCost;
   const timerFlow = initTimerFlow({
     config,
     activeGame: window.activeGame,
@@ -669,7 +699,7 @@ async function startGame(mode) {
     tutorialController,
     showTimerToast,
     flashGoldWarning,
-    BONUS_COST,
+    getBonusCost: resolveBonusCost,
     getIsRefilling: () => isRefilling,
     setIsRefilling: (v) => {
       isRefilling = v;
