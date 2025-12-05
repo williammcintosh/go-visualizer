@@ -87,48 +87,36 @@ function showRatingGain(amount, targetEl = null) {
   if (!target) return;
   const rect = target.getBoundingClientRect();
   const badgeRect = skillBadge?.getBoundingClientRect();
-  const anchorInsideBadge =
-    Boolean(skillBadge) && Boolean(badgeRect?.width) && Boolean(rect?.width);
-  const relX = anchorInsideBadge
-    ? rect.left - badgeRect.left - rect.width * 0.85
-    : rect.left + rect.width / 2;
-  const relY = anchorInsideBadge
-    ? rect.top - badgeRect.top - 6
-    : rect.top + rect.height * 0.8;
+  const relX = badgeRect
+    ? badgeRect.left + badgeRect.width / 2 - 20
+    : rect.left + rect.width / 2 - 20;
+  const relY =
+    badgeRect + 10 ? badgeRect.bottom + 10 : rect.top + rect.height * 0.8;
   const float = document.createElement('div');
-  float.className = anchorInsideBadge
-    ? 'rating-float rating-float--anchored'
-    : 'rating-float';
-  float.textContent = amount > 0 ? `+${amount}` : `${amount}`;
-  if (anchorInsideBadge) {
-    float.style.left = `${relX}px`;
-    float.style.top = `${relY}px`;
-    skillBadge.appendChild(float);
-  } else {
-    float.style.transform = `translate(${relX}px, ${relY}px)`;
-    document.body.appendChild(float);
-  }
-  const keyframes = anchorInsideBadge
-    ? [
-        { opacity: 0, transform: 'translateY(0) scale(0.95)' },
-        { opacity: 1, transform: 'translateY(0) scale(1.08)' },
-        { opacity: 0, transform: 'translateY(-10px) scale(1)' },
-      ]
-    : [
-        { opacity: 0, transform: `${float.style.transform} scale(0.95)` },
-        { opacity: 1, transform: `${float.style.transform} scale(1.08)` },
-        {
-          opacity: 0,
-          transform: `${float.style.transform} translateY(-10px) scale(1)`,
-        },
-      ];
-  float
-    .animate(keyframes, {
-      duration: amount > 1 ? 950 : 750,
-      easing: 'ease-out',
-      fill: 'forwards',
-    })
-    .finished.finally(() => float.remove());
+  float.className = 'rating-float rating-float-stack';
+  float.style.opacity = '1';
+  float.style.fontSize = 'clamp(0.5rem, 2vw + 0.4rem, 1.35rem)';
+  float.style.left = `${relX}px`;
+  float.style.top = `${relY}px`;
+  float.style.right = 'auto';
+  float.style.transform = 'translateX(-50%)';
+  document.body.appendChild(float);
+  return {
+    container: float,
+    addLine: (text) => {
+      const line = document.createElement('div');
+      line.textContent = text;
+      float.appendChild(line);
+    },
+    fadeOut: (duration = 450) =>
+      new Promise((resolve) => {
+        float.classList.add('fade-out');
+        setTimeout(() => {
+          float.remove();
+          resolve();
+        }, duration + 80);
+      }),
+  };
 }
 
 function writeSkillDebug(snapshot, level) {
@@ -307,7 +295,8 @@ function triggerLevelOverlay(level) {
 
   goBtn.addEventListener('click', () => {
     overlay.remove();
-    const homeBtn = document.getElementById('homeBtn2') || document.getElementById('homeBtn');
+    const homeBtn =
+      document.getElementById('homeBtn2') || document.getElementById('homeBtn');
     if (homeBtn) homeBtn.click();
     if (nextBtn) {
       nextBtn.disabled = false;
@@ -542,10 +531,11 @@ function createDifficultyOutcomeRecorder({
         rewardRuleTriggered = 'completed';
       }
     }
-    const currentRatingValue =
-      Number.isFinite(Number(ratingResult.currentRating))
-        ? Number(ratingResult.currentRating)
-        : Number(difficultyState.rating) || 0;
+    const currentRatingValue = Number.isFinite(
+      Number(ratingResult.currentRating)
+    )
+      ? Number(ratingResult.currentRating)
+      : Number(difficultyState.rating) || 0;
     ratingResult.delta = newDelta;
     ratingResult.nextRating = Math.max(
       0,
@@ -572,10 +562,7 @@ function createDifficultyOutcomeRecorder({
         computedRatio:
           activeGame?.barRatioAtHide ??
           (activeGame?.timeLeft && config?.time
-            ? Math.max(
-                0,
-                Math.min(1, (activeGame.timeLeft || 0) / config.time)
-              )
+            ? Math.max(0, Math.min(1, (activeGame.timeLeft || 0) / config.time))
             : null),
         freezeReason: activeGame?.freezeReason ?? null,
       },
@@ -593,7 +580,11 @@ function createDifficultyOutcomeRecorder({
       rewardPhase: {
         rewardGiven: ratingResult.delta,
         rewardRuleTriggered: ratingResult.rewardRuleTriggered,
-        branch: playerSkipped ? 'skip/expedite' : completed ? 'completed' : 'none',
+        branch: playerSkipped
+          ? 'skip/expedite'
+          : completed
+          ? 'completed'
+          : 'none',
       },
       meta: {
         completed,
@@ -625,7 +616,38 @@ function createDifficultyOutcomeRecorder({
     );
 
     if (ratingResult.delta > 0) {
-      showRatingGain(ratingResult.delta, skillRatingEl);
+      const steps = [];
+      steps.push({ label: 'COMPLETED \u2705 +1', value: 1 });
+      if (rewardRuleTriggered === 'skip50plus') {
+        steps.push({ label: '50% SKIP \u2705 +1', value: 1 });
+      } else if (
+        rewardRuleTriggered === 'skip75plus' ||
+        rewardRuleTriggered === 'skip75plusSpeed' ||
+        rewardRuleTriggered === 'skip75plusMaxSpeed'
+      ) {
+        steps.push({ label: '75% SKIP \u2705 +2', value: 2 });
+      }
+      if (
+        usedSpeedBoost ||
+        ratingResult.speedBonusUsed ||
+        maxSpeedBonusAchieved
+      ) {
+        steps.push({ label: 'SPEED \u2705 +1', value: 1 });
+      }
+      const stack = showRatingGain(1, skillRatingEl);
+      const stepDelay = Number(window.GOLD_AWARD_PAUSE + 200) || 260;
+      let currentDisplay = currentRatingValue;
+      (async () => {
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          if (stack) stack.addLine(step.label);
+          currentDisplay += step.value;
+          renderSkillRating(skillRatingEl, currentDisplay, currentDisplay);
+          await new Promise((resolve) => setTimeout(resolve, stepDelay));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        await stack?.fadeOut?.(450);
+      })();
     }
 
     renderSkillRating(skillRatingEl, finalState.rating, finalState.rating);

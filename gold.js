@@ -20,10 +20,10 @@ function calculateSpeedBonus(reactionTime = REACTION_TIME_SLOW) {
       1,
       Math.max(
         0,
-      (reactionTime - REACTION_TIME_BASE) /
-        (REACTION_TIME_SLOW - REACTION_TIME_BASE)
-    )
-  );
+        (reactionTime - REACTION_TIME_BASE) /
+          (REACTION_TIME_SLOW - REACTION_TIME_BASE)
+      )
+    );
   return Math.round(normalized * SPEED_BONUS_MAX);
 }
 
@@ -33,7 +33,9 @@ function getRewardScale() {
   const baseSeq = Number(window.SEQUENCE_BONUS) || 0;
   const baseSlowPos = basePos + baseColor;
   const baseSlowSeq = baseSlowPos + baseSeq;
-  const baseValues = [baseSlowPos, baseSlowSeq].filter((v) => Number.isFinite(v));
+  const baseValues = [baseSlowPos, baseSlowSeq].filter((v) =>
+    Number.isFinite(v)
+  );
   const baseSlowAvg =
     baseValues.reduce((a, b) => a + b, 0) / Math.max(1, baseValues.length);
   const speedHalf = (Number(window.SPEED_BONUS_MAX) || SPEED_BONUS_MAX) / 2;
@@ -61,57 +63,67 @@ function showGoldFloat(label, amount, duration = getGoldAwardDuration(amount)) {
   const goldBadge = document.getElementById('goldBadge');
   const badgeRect = goldBadge?.getBoundingClientRect();
   const startRect = goldValueEl.getBoundingClientRect();
-  const anchorInsideBadge =
-    Boolean(goldBadge) && Boolean(badgeRect?.width) && Boolean(startRect?.width);
-  const relX = anchorInsideBadge
-    ? startRect.left - badgeRect.left + startRect.width * 0.65
-    : startRect.left + startRect.width / 2;
-  const relY = anchorInsideBadge
-    ? startRect.top - badgeRect.top - 6
-    : startRect.top - 16;
+  const relX = badgeRect
+    ? badgeRect.left + badgeRect.width / 2 - 120
+    : startRect.left + startRect.width / 2 - 120;
+  const relY = badgeRect ? badgeRect.bottom - 0 : startRect.top - 0;
   const float = document.createElement('div');
-  float.className = anchorInsideBadge
-    ? 'gold-float gold-float--anchored'
-    : 'gold-float';
+  float.className = 'gold-float';
   float.textContent = `+${amount} ${label}`;
-  if (anchorInsideBadge) {
-    float.style.left = `${relX}px`;
-    float.style.top = `${relY}px`;
-    goldBadge.appendChild(float);
-  } else {
-    float.style.transform = `translate(${relX}px, ${relY}px)`;
-    document.body.appendChild(float);
-  }
-  const keyframes = anchorInsideBadge
-    ? [
-        { transform: 'translateY(0)', opacity: 0 },
-        { transform: 'translateY(0)', opacity: 1, offset: 0.0002 },
-        { transform: 'translateY(-20px)', opacity: 1, offset: 0.99 },
-        { transform: 'translateY(-25px)', opacity: 0 },
-      ]
-    : [
-        { transform: `translate(${relX}px, ${relY}px)`, opacity: 0 },
-        {
-          transform: `translate(${relX}px, ${relY}px)`,
-          opacity: 1,
-          offset: 0.0002,
-        },
-        {
-          transform: `translate(${relX}px, ${relY - 20}px)`,
-          opacity: 1,
-          offset: 0.99,
-        },
-        {
-          transform: `translate(${relX}px, ${relY - 25}px)`,
-          opacity: 0,
-        },
-      ];
+  float.style.fontSize = 'clamp(0.5rem, 2vw + 0.4rem, 1.35rem)';
+  float.style.left = `${relX}px`;
+  float.style.top = `${relY}px`;
+  float.style.transform = `translateX(-50%)`;
+  document.body.appendChild(float);
+  const keyframes = [
+    { transform: 'translate(-50%, 0)', opacity: 0 },
+    { transform: 'translate(-50%, 0)', opacity: 1, offset: 0.0002 },
+    { transform: 'translate(-50%, -20px)', opacity: 1, offset: 0.99 },
+    { transform: 'translate(-50%, -25px)', opacity: 0 },
+  ];
   const animation = float.animate(keyframes, {
     duration,
     easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
     fill: 'forwards',
   });
   return animation.finished.then(() => float.remove());
+}
+
+function showGoldFloatStack(labels) {
+  const goldValueEl = document.getElementById('goldValue');
+  if (!goldValueEl) return null;
+  const goldBadge = document.getElementById('goldBadge');
+  const badgeRect = goldBadge?.getBoundingClientRect();
+  const startRect = goldValueEl.getBoundingClientRect();
+  const relX = badgeRect
+    ? badgeRect.left + badgeRect.width / 2 - 120
+    : startRect.left + startRect.width / 2 - 120;
+  const relY = badgeRect ? badgeRect.bottom - 0 : startRect.top - 0;
+  const container = document.createElement('div');
+  container.className = 'gold-float gold-float-stack';
+  container.style.fontSize = 'clamp(0.5rem, 2vw + 0.4rem, 1.35rem)';
+  container.style.transform = `translate(${relX}px, ${relY}px) translateX(-50%)`;
+  const addLine = (text) => {
+    const line = document.createElement('div');
+    line.textContent = text;
+    container.appendChild(line);
+  };
+  (labels || []).forEach((text) => addLine(text));
+  document.body.appendChild(container);
+  return { container, addLine };
+}
+
+function fadeOutAndRemove(el, duration = 300) {
+  if (!el) return Promise.resolve();
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      el.classList.add('fade-out');
+    });
+    setTimeout(() => {
+      el.remove();
+      resolve();
+    }, duration + 80);
+  });
 }
 
 function animateGoldValue(amount, duration = getGoldAwardDuration(amount)) {
@@ -157,26 +169,42 @@ async function addGold({
   reactionTime = REACTION_TIME_SLOW,
   finalBoardCorrect = false,
   sequenceOrderIssues = 0,
+  positionsReward = false,
+  colorsReward = false,
 } = {}) {
-  if (!finalBoardCorrect) return;
   const rewardScale = getRewardScale();
   const stoneCount = getStoneCountForRewards();
   const baselineStones = Number(window.MIN_STONES) || 5;
   const stoneFactor = Math.max(1, stoneCount / Math.max(1, baselineStones));
   const scaleValue = (value) =>
     Math.max(0, Math.round(value * rewardScale * stoneFactor));
-  const breakdown = [
-    { label: 'Correct positions', value: scaleValue(window.POSITION_BONUS) },
-    { label: 'Correct colors', value: scaleValue(window.COLOR_BONUS) },
-  ];
-  const speedBonus = calculateSpeedBonus(reactionTime);
-  if (speedBonus) {
-    breakdown.push({ label: 'Speed bonus', value: scaleValue(speedBonus) });
-    if (speedBonus > 0 && window.activeGame) {
-      window.activeGame.maxSpeedBonusAchieved = true;
+  const breakdown = [];
+  if (positionsReward) {
+    breakdown.push({
+      label: 'Positions',
+      value: scaleValue(window.POSITION_BONUS),
+    });
+  }
+  if (colorsReward) {
+    breakdown.push({
+      label: 'Colors',
+      value: scaleValue(window.COLOR_BONUS),
+    });
+  }
+  if (finalBoardCorrect) {
+    const speedBonus = calculateSpeedBonus(reactionTime);
+    if (speedBonus) {
+      breakdown.push({ label: 'Speed', value: scaleValue(speedBonus) });
+      if (speedBonus > 0 && window.activeGame) {
+        window.activeGame.maxSpeedBonusAchieved = true;
+      }
     }
   }
-  if (window.currentMode === 'sequence' && sequenceOrderIssues === 0) {
+  if (
+    finalBoardCorrect &&
+    window.currentMode === 'sequence' &&
+    sequenceOrderIssues === 0
+  ) {
     breakdown.push({
       label: 'Perfect sequence',
       value: scaleValue(window.SEQUENCE_BONUS),
@@ -184,18 +212,23 @@ async function addGold({
   }
   if (!breakdown.length) return;
 
+  const stack = showGoldFloatStack();
+
   for (const award of breakdown) {
     const baseLabel = (award.label || '')
       .replace(/bonus/gi, '')
       .replace(/correct/gi, '')
       .replace(/\s{2,}/g, ' ')
       .trim();
-    const decoratedLabel = `${baseLabel.toUpperCase()} \u2705`;
-    const floatPromise = showGoldFloat(decoratedLabel, award.value);
+    const decoratedLabel = `${baseLabel.toUpperCase()} \u2705  +${award.value}`;
+    stack?.addLine(decoratedLabel);
     const goldPromise = animateGoldValue(award.value);
-    await Promise.all([floatPromise, goldPromise]);
+    await goldPromise;
     await window.delay(window.GOLD_AWARD_PAUSE);
   }
+
+  await window.delay(400);
+  await fadeOutAndRemove(stack?.container, 320);
 
   window.persistProgress();
   updateBonusAvailability();
@@ -292,17 +325,16 @@ function updateBonusAvailability() {
   if (!addTime || !eyeGlass) return;
 
   const cost =
-    typeof window.getBonusCost === 'function' ? window.getBonusCost() : window.BONUS_COST;
+    typeof window.getBonusCost === 'function'
+      ? window.getBonusCost()
+      : window.BONUS_COST;
   const canAffordBonus = window.gameState.gold >= (Number(cost) || 0);
   const timerIsRunning = Boolean(window.activeGame?.timer);
   const feedbackActive = isFeedbackVisible();
 
   setBonusState(
     addTime,
-    !feedbackActive &&
-      canAffordBonus &&
-      !window.isRefilling &&
-      timerIsRunning
+    !feedbackActive && canAffordBonus && !window.isRefilling && timerIsRunning
   );
   setBonusState(
     eyeGlass,

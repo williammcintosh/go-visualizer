@@ -35,6 +35,7 @@ function checkAnswers({
 
   let missedCount = 0;
   const orderMistakes = new Set();
+  let filledPositions = 0;
   for (let y = 0; y <= config.size; y++) {
     for (let x = 0; x <= config.size; x++) {
       const inter = document.querySelector(
@@ -51,6 +52,9 @@ function checkAnswers({
         correct =
           (expected.color === 'white' && playerWhite) ||
           (expected.color === 'black' && playerBlack);
+        if (playerWhite || playerBlack) {
+          filledPositions++;
+        }
       } else if (!playerWhite && !playerBlack) correct = true;
 
       const marker = document.createElement('div');
@@ -70,6 +74,22 @@ function checkAnswers({
       inter.appendChild(marker);
     }
   }
+
+  const expectedBlackCount = stones.filter((s) => s.color === 'black').length;
+  const expectedWhiteCount = stones.filter((s) => s.color === 'white').length;
+  let playerBlackCount = 0;
+  let playerWhiteCount = 0;
+  document.querySelectorAll('.intersection.black').forEach(() => {
+    playerBlackCount++;
+  });
+  document.querySelectorAll('.intersection.white').forEach(() => {
+    playerWhiteCount++;
+  });
+  const positionsReward = filledPositions === stones.length && stones.length > 0;
+  const colorsReward =
+    playerBlackCount === expectedBlackCount &&
+    playerWhiteCount === expectedWhiteCount &&
+    expectedBlackCount + expectedWhiteCount > 0;
 
   if (currentMode === 'sequence') {
     const history = window.activeGame?.sequenceHistory ?? [];
@@ -232,6 +252,8 @@ function checkAnswers({
         reactionTime: window.activeGame?.reactionTime || 10000,
         finalBoardCorrect,
         sequenceOrderIssues,
+        positionsReward,
+        colorsReward,
       }).finally(() => {
         if (!levelOverlayActive()) {
           nextBtn.disabled = false;
@@ -249,6 +271,19 @@ function checkAnswers({
       msg.textContent =
         missedCount === 1 ? 'Missed just one stone!' : 'Missed some stones!';
     }
+  }
+
+  // Partial rewards even on failure
+  if (!allCorrect) {
+    setTimeout(() => {
+      addGold({
+        reactionTime: window.activeGame?.reactionTime || 10000,
+        finalBoardCorrect,
+        sequenceOrderIssues,
+        positionsReward,
+        colorsReward,
+      });
+    }, window.ANIM_DELAY);
   }
 
   feedback.classList.add('show-msg');

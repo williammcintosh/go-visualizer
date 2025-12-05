@@ -1237,11 +1237,48 @@ button:not(.bonus-button):not(#checkBtn):disabled {
   top: 0;
 }
 
+.gold-float-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  opacity: 1;
+}
+
+.gold-float-stack.gold-float--anchored {
+  transform: none !important;
+}
+
+.gold-float-stack.fade-out {
+  animation: goldStackFade 450ms ease forwards;
+}
+
+.rating-float-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  opacity: 1;
+}
+
+.rating-float-stack.rating-float--anchored {
+  transform: none !important;
+}
+
+.rating-float-stack.fade-out {
+  animation: goldStackFade 450ms ease forwards;
+}
+
+@keyframes goldStackFade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 .rating-float {
   right: 140px;
-  color: #2e7d32;
-  font-size: 1.7rem;
-  font-weight: 800;
+  color: #4caf50;
+  font-size: 1.3rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
 }
 
