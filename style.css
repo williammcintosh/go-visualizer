@@ -1432,3 +1432,31 @@ button:not(.bonus-button):not(#checkBtn):disabled {
     align-items: center;
   }
 }
+
+/* ========= Tablet Upsize (iPad Air/Pro portrait) ========= */
+@media (min-width: 768px) and (max-width: 1100px) {
+  :root {
+    --layout-width: min(94vw, 520px);
+    --main-width: var(--layout-width);
+    --max-board: var(--layout-width);
+    --content-width: calc(var(--layout-width) * 0.9);
+  }
+
+  #board {
+    margin: clamp(3rem, 11vh, 5rem) auto 0;
+  }
+
+  #timerContainer {
+    margin-top: 3.2rem;
+  }
+
+  #checkBtn {
+    font-size: clamp(1.2rem, 2.6vw, 2rem);
+    padding: 1rem 1.4rem;
+  }
+
+  button.bonus-button {
+    padding: 0.8rem 1rem;
+    font-size: 0.95rem;
+  }
+}
